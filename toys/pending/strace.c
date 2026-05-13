@@ -533,7 +533,14 @@ static void print_enter(void)
 #if defined(__NR_lstat)
     SC(lstat, "s/{stat}");
 #endif
-    SC(mmap, "pz|prot||mmap|fx");
+
+#ifdef __NR_mmap
+    SC(mmap,  "pz|prot||mmap|fx");
+#endif
+#ifdef __NR_mmap2
+    SC(mmap2, "pz|prot||mmap|fx");
+#endif
+
     SC(mprotect, "pz|prot|");
     SC(mremap, "pzzdp"); // TODO: flags
     SC(munmap, "pz");
@@ -598,7 +605,14 @@ static void print_exit(void)
   result = regs[REG_ORDER[7]];
   if (result >= -4095UL)
     fprintf(stderr, "-1 %s (%s)", strerrno(-result), strerror(-result));
-  else if (TT.syscall==__NR_mmap || TT.syscall==__NR_brk) print_ptr(result);
+    else if (TT.syscall==__NR_brk
+#ifdef __NR_mmap
+    || TT.syscall==__NR_mmap
+#endif
+#ifdef __NR_mmap2
+    || TT.syscall==__NR_mmap2
+#endif
+  ) print_ptr(result);
   else fprintf(stderr, "%ld", result);
   fputc('\n', stderr);
 }
