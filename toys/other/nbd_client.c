@@ -98,7 +98,7 @@ void nbd_client_main(void)
       }
       close(open(device, O_RDONLY));
       if (CFG_TOYBOX_FORK) _exit(0);
-    }
+    } else wait(0);
 
     // Process NBD requests until further notice.
 
