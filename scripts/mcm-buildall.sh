@@ -178,10 +178,8 @@ patch_mcm()
   sed -i 's/mirror//;s/\(LINUX_VER =\).*/\1 6.15.7/;s/\(GCC_VER =\).*/\1 15.1.0/' \
     Makefile &&
 
-  # nommu toolchains need to vfork()+pipe, and or1k has different kernel arch
-  sed -i -e 's/--enable-fdpic$/& --enable-twoprocess/' \
-      -e '/or1k/!s/^\(TARGET_ARCH_MANGLED = \)\(.*\)/\1$(patsubst or1k,openrisc,\2)/' \
-      litecross/Makefile &&
+  # nommu toolchains need to vfork()+pipe
+  sed -i -e 's/--enable-fdpic$/& --enable-twoprocess/' litecross/Makefile &&
 
   # Packages detect nommu via the absence of fork(). Musl provides a broken
   # fork() on nommu builds that always returns -ENOSYS at runtime. Rip it out.
