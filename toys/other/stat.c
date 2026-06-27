@@ -5,7 +5,7 @@
 USE_STAT(NEWTOY(stat, "<1c:(format)fLt", TOYFLAG_BIN))
 
 config STAT
-  bool stat
+  bool "stat"
   default y
   help
     usage: stat [-tfL] [-c FORMAT] FILE...
