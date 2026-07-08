@@ -42,219 +42,82 @@ GLOBALS(
   int fp_response;
 )
 
-union attributes {
-  struct {
-    unsigned disabledstatesupport : 1;
-    unsigned batterycharging : 1;
-    unsigned usbpowerdelivery : 1;
-    unsigned reserved1 : 3;
-    unsigned usbtypeccurrent : 1;
-    unsigned reserved2 : 1;
-    union {
-      struct {
-        unsigned char acsupply : 1;
-        unsigned char psreserved1 : 1;
-        unsigned char other : 1;
-        unsigned char psreserved2 : 3;
-        unsigned char vbus : 1;
-        unsigned char psreserved3 : 1;
-      };
-      unsigned char raw_powersrc;
-    } bmPowerSource;
-    unsigned reserved3 : 16;
-  };
-  unsigned raw_attrs;
-};
+#define UCSI_MIN_MESSAGE_IN_LEN 16
+#define UCSI_CONNECTOR_STATUS_LEN 16
+#define UCSI_CABLE_PROPERTY_LEN 8
+#define UCSI_BIT(value, bit) (((unsigned)(value)>>(bit))&1)
+// UCSI connector numbers in commands are one-based.
+#define UCSI_CONNECTOR_NUM(conn) ((conn)+1)
+#define UCSI_CMD_CONNECTOR(conn) (UCSI_CONNECTOR_NUM(conn)<<16)
 
-union optionalfeature {
-  struct {
-    unsigned char setccomsupported : 1;
-    unsigned char setpowerlevelsupported : 1;
-    unsigned char altmodedetailssupported : 1;
-    unsigned char altmodeoverridesupported : 1;
-    unsigned char pdodetailssupported : 1;
-    unsigned char cabledetailssupported : 1;
-    unsigned char extsupplynotificationsupported : 1;
-    unsigned char pdresetnotificationsupported : 1;
-    unsigned char getpdmessagesupported : 1;
-    unsigned char getattentionvdosupported : 1;
-    unsigned char fwupdaterequestsupported : 1;
-    unsigned char negotiatedpowerlevelchangesupported : 1;
-    unsigned char securityrequestsupported : 1;
-    unsigned char setretimermodesupported : 1;
-    unsigned char chunkingsupportsupported : 1;
-    unsigned char reserved1 : 1;
-    unsigned char reserved2;
-  };
-  unsigned char raw_optfeas[3];
-};
+#define UCSI_CMD_PPM_RESET 0x01
+#define UCSI_CMD_CANCEL 0x02
+#define UCSI_CMD_CONNECTOR_RESET 0x03
+#define UCSI_CMD_ACK_CC_CI 0x04
+#define UCSI_CMD_SET_NOTIFICATION_ENABLE 0x05
+#define UCSI_CMD_GET_CAPABILITY 0x06
+#define UCSI_CMD_GET_CONNECTOR_CAPABILITY 0x07
+#define UCSI_CMD_SET_CCOM 0x08
+#define UCSI_CMD_SET_UOR 0x09
+#define UCSI_CMD_SET_PDR 0x0b
+#define UCSI_CMD_GET_ALTERNATE_MODES 0x0c
+#define UCSI_CMD_GET_CURRENT_CAM 0x0e
+#define UCSI_CMD_SET_NEW_CAM 0x0f
+#define UCSI_CMD_GET_PDOS 0x10
+#define UCSI_CMD_GET_CABLE_PROPERTY 0x11
+#define UCSI_CMD_GET_CONNECTOR_STATUS 0x12
+#define UCSI_CMD_GET_ERROR_STATUS 0x13
+#define UCSI_CMD_GET_LPM_PPM_INFO 0x22
 
-struct capability_data {
-  union attributes bmAttributes;
-  unsigned bNumConnectors : 7;
-  unsigned reserved1 : 1;
-  union optionalfeature bmOptionalFeatures;
-  unsigned bNumAltModes : 8;
-  unsigned reserved2 : 8;
-  unsigned bcdBCVersion : 16;
-  unsigned bcdPDVersion : 16;
-  unsigned bcdTypeCVersion : 16;
-};
+#define UCSI_POM_USB_DEFAULT 1
+#define UCSI_POM_BC 2
+#define UCSI_POM_PD 3
+#define UCSI_POM_TYPEC_1_5A 4
+#define UCSI_POM_TYPEC_3A 5
+#define UCSI_POM_TYPEC_5A 6
 
-union operationmode {
-  struct {
-    unsigned char rponly : 1;
-    unsigned char rdonly : 1;
-    unsigned char drp : 1;
-    unsigned char analogaudioaccessorymode : 1;
-    unsigned char debugaccessorymode : 1;
-    unsigned char usb2 : 1;
-    unsigned char usb3 : 1;
-    unsigned char alternatemode : 1;
-  };
-  unsigned char raw_operationmode;
-};
+#define UCSI_POWER_CONSUMER 0
+#define UCSI_POWER_PROVIDER 1
 
-union extendedoperationmode {
-  struct {
-    unsigned char usb4gen2 : 1;
-    unsigned char eprsrc : 1;
-    unsigned char eprsnk : 1;
-    unsigned char usb4gen3 : 1;
-    unsigned char usb4gen4 : 1;
-    unsigned char reserved : 3;
-  };
-  unsigned char raw_extendedoperationmode;
-};
+#define UCSI_PARTNER_DFP 1
+#define UCSI_PARTNER_UFP 2
+#define UCSI_PARTNER_POWERED_CABLE_NO_UFP 3
+#define UCSI_PARTNER_POWERED_CABLE_UFP 4
+#define UCSI_PARTNER_DEBUG_ACCESSORY 5
+#define UCSI_PARTNER_AUDIO_ACCESSORY 6
 
-union miscellaneouscapabilities {
-  struct {
-    unsigned char fwupdate : 1;
-    unsigned char security : 1;
-    unsigned char reserved : 2;
-  };
-  unsigned char raw_miscellaneouscapabilities;
-};
+#define UCSI_BC_NOT_CHARGING 0
+#define UCSI_BC_NOMINAL 1
+#define UCSI_BC_SLOW 2
+#define UCSI_BC_VERY_SLOW 3
 
-struct connector_cap_data {
-  union operationmode opr_mode;
-  unsigned provider : 1;
-  unsigned consumer : 1;
-  unsigned swap2dfp : 1;
-  unsigned swap2ufp : 1;
-  unsigned swap2src : 1;
-  unsigned swap2snk : 1;
-  unsigned extended_operation_mode : 8;
-  unsigned miscellaneous_capabilities : 4;
-  unsigned reverse_current_protection_support : 1;
-  unsigned partner_pd_rev : 2;
-  unsigned reserved : 3;
-} __attribute__((packed));
+#define UCSI_ORIENTATION_DIRECT 0
+#define UCSI_ORIENTATION_FLIPPED 1
 
-union connectorstatuschange {
-  struct {
-    unsigned char reserved1 : 1;
-    unsigned char ExternalSupplyChange : 1;
-    unsigned char PowerOperationModechange : 1;
-    unsigned char Attention : 1;
-    unsigned char Reserved2 : 1;
-    unsigned char SupportedProviderCapabilitiesChange : 1;
-    unsigned char NegotiatedPowerLevelChange : 1;
-    unsigned char PDResetComplete : 1;
-    unsigned char SupportedCAMChange : 1;
-    unsigned char BatteryChargingStatusChange : 1;
-    unsigned char Reserved3 : 1;
-    unsigned char ConnectorPartnerChanged : 1;
-    unsigned char PowerDirectionChanged : 1;
-    unsigned char SinkPathStatusChange : 1;
-    unsigned char ConnectChange : 1;
-    unsigned char Error : 1;
-  };
-  unsigned short raw_conn_stschang;
-};
+#define UCSI_CABLE_SPEED_BITS 0
+#define UCSI_CABLE_SPEED_KBPS 1
+#define UCSI_CABLE_SPEED_MBPS 2
+#define UCSI_CABLE_SPEED_GBPS 3
 
-union connectorpartnerflags {
-  struct {
-    unsigned char usb : 1;
-    unsigned char altmode : 1;
-    unsigned char usb4_gen3 : 1;
-    unsigned char usb4_gen4 : 1;
-    unsigned char reserved : 4;
-  };
-  unsigned char raw_conn_part_flags;
-};
+#define UCSI_CABLE_PASSIVE 0
+#define UCSI_CABLE_ACTIVE 1
 
-struct connector_status {
-  union connectorstatuschange ConnectorStatusChange;
-  unsigned PowerOperationMode : 3;
-  unsigned ConnectStatus : 1;
-  unsigned PowerDirection : 1;
-  unsigned ConnectorPartnerFlags : 8;
-  unsigned ConnectorPartnerType : 3;
-  unsigned RequestDataObject : 32;
-  unsigned BatteryChargingCapabilityStatus : 2;
-  unsigned ProviderCapabilitiesLimitedReason : 4;
-  unsigned bcdPDVersionOperationMode : 16;
-  unsigned Orientation : 1;
-  unsigned SinkPathStatus : 1;
-  unsigned ReverseCurrentProtectionStatus : 1;
-  unsigned PowerReadingReady : 1;
-  unsigned CurrentScale : 3;
-  unsigned PeakCurrent : 16;
-  unsigned AverageCurrent : 16;
-  unsigned VoltageScale : 4;
-  unsigned VoltageReading : 16;
-  unsigned Reserved : 7;
-} __attribute__((packed));
+#define UCSI_PLUG_TYPE_A 0
+#define UCSI_PLUG_TYPE_B 1
+#define UCSI_PLUG_TYPE_C 2
+#define UCSI_PLUG_OTHER 3
 
-struct cable_property {
-  unsigned short speed_supported;
-  unsigned current_capability : 8;
-  unsigned vbus_support : 1;
-  unsigned cable_type : 1;
-  unsigned directionality : 1;
-  unsigned plug_end_type : 2;
-  unsigned mode_support : 1;
-  unsigned cable_pd_revision : 2;
-  unsigned latency : 4;
-  unsigned reserved : 28;
-} __attribute__((packed));
+// Extract UCSI bitfields from little-endian response bytes.
+static unsigned get_bits(unsigned char *p, int first, int len)
+{
+  unsigned val = 0;
+  int i;
 
-struct get_lpm_ppm_info {
-  unsigned short vid;
-  unsigned short pid;
-  unsigned xid;
-  unsigned fw_version_upper;
-  unsigned fw_version_lower;
-  unsigned hw_version;
-};
+  for (i = 0; i < len; i++)
+    if (UCSI_BIT(p[(first+i)/8], (first+i)&7)) val |= 1u<<i;
 
-struct get_error_status {
-  struct {
-    unsigned short unrecognized_command : 1;
-    unsigned short nonexistent_connector_number : 1;
-    unsigned short invalid_cmd_specific_params : 1;
-    unsigned short incompatible_connector_partner : 1;
-    unsigned short cc_comm_error : 1;
-    unsigned short cmd_unsuccessful_dead_battery : 1;
-    unsigned short contract_negotiation_failure : 1;
-    unsigned short overcurrent : 1;
-    unsigned short undefined : 1;
-    unsigned short port_partner_reject_swap : 1;
-    unsigned short hard_reset : 1;
-    unsigned short ppm_policy_conflict : 1;
-    unsigned short swap_rejected : 1;
-    unsigned short reverse_current_protection : 1;
-    unsigned short set_sink_path_rejected : 1;
-    unsigned short reserved : 1;
-  } error_info;
-  unsigned short vendor_defined;
-} __attribute__((packed));
-
-struct altmode_data {
-  uint16_t svid;
-  uint32_t vdo;
-};
+  return val;
+}
 
 static int hex_to_int(char c)
 {
@@ -324,8 +187,8 @@ static void ucsi_close(void)
   if (TT.fp_response > 0) close(TT.fp_response);
 }
 
-// Read a UCSI response, decode ASCII hex (skipping leading "0x"), and reverse
-// the byte order. Returns number of decoded bytes, or -1 on error.
+// Read a UCSI response, decode ASCII hex (skipping leading "0x"), and store
+// bytes in little-endian protocol order. Returns decoded byte count or -1.
 static int read_resp(unsigned char *data)
 {
   char *c = toybuf;
@@ -348,7 +211,7 @@ static int read_resp(unsigned char *data)
     if (hi < 0 || lo < 0) break;
     tmp[di++] = (hi<<4) | lo;
   }
-  // Response is printed MSB-first; reverse to little-endian struct order.
+  // debugfs prints 64-bit chunks as ext, high, low; restore low-first bytes.
   for (i = 0; i < di; i++) data[i] = tmp[di-1-i];
 
   return di;
@@ -364,6 +227,24 @@ static int ucsi_xfer(char *cmd, unsigned char *resp)
   if (write(TT.fp_command, buf, sizeof(buf)) < 0) return -1;
 
   return read_resp(resp);
+}
+
+// Format a numeric UCSI command for debugfs.
+static int ucsi_cmd(unsigned long long cmd, unsigned char *resp)
+{
+  sprintf(toybuf, "0x%llx", cmd);
+
+  return ucsi_xfer(toybuf, resp);
+}
+
+static int xucsi_cmd(unsigned long long cmd, unsigned char *resp,
+  char *name)
+{
+  int n;
+
+  if ((n = ucsi_cmd(cmd, resp)) < UCSI_MIN_MESSAGE_IN_LEN) error_exit("%s failed", name);
+
+  return n;
 }
 
 static void print_message_in(unsigned char *p, int len)
@@ -392,245 +273,232 @@ static int get_conn(char *s)
   return conn;
 }
 
-static void print_capability(struct capability_data *c)
+static void print_capability(unsigned char *c)
 {
+  unsigned attrs = (unsigned)peek_le(c, 4);
+  unsigned opt = c[5] | (c[6]<<8) | (c[7]<<16);
+
   printf("\nUCSI_GET_CAPABILITY_IN:\n-------------------------\n");
   printf("bmAttributes:\n");
-  printf("  disabledStateSupport: %u\n", c->bmAttributes.disabledstatesupport);
-  printf("  batteryCharging: %u\n", c->bmAttributes.batterycharging);
-  printf("  usbPowerDelivery: %u\n", c->bmAttributes.usbpowerdelivery);
-  printf("  usbTypeCCurrent: %u\n", c->bmAttributes.usbtypeccurrent);
-  printf("  bmPowerSource.acsupply: %u\n",
-    c->bmAttributes.bmPowerSource.acsupply);
-  printf("  bmPowerSource.other: %u\n", c->bmAttributes.bmPowerSource.other);
-  printf("  bmPowerSource.vbus: %u\n", c->bmAttributes.bmPowerSource.vbus);
-  printf("bNumConnectors: %x\n", c->bNumConnectors);
+  printf("  disabledStateSupport: %u\n", UCSI_BIT(attrs, 0));
+  printf("  batteryCharging: %u\n", UCSI_BIT(attrs, 1));
+  printf("  usbPowerDelivery: %u\n", UCSI_BIT(attrs, 2));
+  printf("  usbTypeCCurrent: %u\n", UCSI_BIT(attrs, 6));
+  printf("  bmPowerSource.acsupply: %u\n", UCSI_BIT(attrs, 8));
+  printf("  bmPowerSource.other: %u\n", UCSI_BIT(attrs, 10));
+  printf("  bmPowerSource.vbus: %u\n", UCSI_BIT(attrs, 14));
+  printf("bNumConnectors: %x\n", get_bits(c, 32, 7));
   printf("bmOptionalFeatures:\n");
-  printf("  setccomsupported: %u\n", c->bmOptionalFeatures.setccomsupported);
-  printf("  setpowerlevelsupported: %u\n",
-    c->bmOptionalFeatures.setpowerlevelsupported);
-  printf("  altmodedetailssupported: %u\n",
-    c->bmOptionalFeatures.altmodedetailssupported);
-  printf("  altmodeoverridesupported: %u\n",
-    c->bmOptionalFeatures.altmodeoverridesupported);
-  printf("  pdodetailssupported: %u\n",
-    c->bmOptionalFeatures.pdodetailssupported);
-  printf("  cabledetailssupported: %u\n",
-    c->bmOptionalFeatures.cabledetailssupported);
-  printf("  extsupplynotificationsupported: %u\n",
-    c->bmOptionalFeatures.extsupplynotificationsupported);
-  printf("  pdresetnotificationsupported: %u\n",
-    c->bmOptionalFeatures.pdresetnotificationsupported);
-  printf("  getpdmessagesupported: %u\n",
-    c->bmOptionalFeatures.getpdmessagesupported);
-  printf("  getattentionvdosupported: %u\n",
-    c->bmOptionalFeatures.getattentionvdosupported);
-  printf("  fwupdaterequestsupported: %u\n",
-    c->bmOptionalFeatures.fwupdaterequestsupported);
-  printf("  negotiatedpowerlevelchangesupported: %u\n",
-    c->bmOptionalFeatures.negotiatedpowerlevelchangesupported);
-  printf("  securityrequestsupported: %u\n",
-    c->bmOptionalFeatures.securityrequestsupported);
-  printf("  setretimermodesupported: %u\n",
-    c->bmOptionalFeatures.setretimermodesupported);
-  printf("  chunkingsupportsupported: %u\n",
-    c->bmOptionalFeatures.chunkingsupportsupported);
-  printf("bNumAltModes: %x\n", c->bNumAltModes);
+  printf("  setccomsupported: %u\n", UCSI_BIT(opt, 0));
+  printf("  setpowerlevelsupported: %u\n", UCSI_BIT(opt, 1));
+  printf("  altmodedetailssupported: %u\n", UCSI_BIT(opt, 2));
+  printf("  altmodeoverridesupported: %u\n", UCSI_BIT(opt, 3));
+  printf("  pdodetailssupported: %u\n", UCSI_BIT(opt, 4));
+  printf("  cabledetailssupported: %u\n", UCSI_BIT(opt, 5));
+  printf("  extsupplynotificationsupported: %u\n", UCSI_BIT(opt, 6));
+  printf("  pdresetnotificationsupported: %u\n", UCSI_BIT(opt, 7));
+  printf("  getpdmessagesupported: %u\n", UCSI_BIT(opt, 8));
+  printf("  getattentionvdosupported: %u\n", UCSI_BIT(opt, 9));
+  printf("  fwupdaterequestsupported: %u\n", UCSI_BIT(opt, 10));
+  printf("  negotiatedpowerlevelchangesupported: %u\n", UCSI_BIT(opt, 11));
+  printf("  securityrequestsupported: %u\n", UCSI_BIT(opt, 12));
+  printf("  setretimermodesupported: %u\n", UCSI_BIT(opt, 13));
+  printf("  chunkingsupportsupported: %u\n", UCSI_BIT(opt, 14));
+  printf("bNumAltModes: %x\n", c[8]);
   printf("bcdBCVersion: ");
-  hex_to_decimal(c->bcdBCVersion);
+  hex_to_decimal((unsigned)peek_le(c+10, 2));
   printf("bcdPDVersion: ");
-  hex_to_decimal(c->bcdPDVersion);
+  hex_to_decimal((unsigned)peek_le(c+12, 2));
   printf("bcdTypeCVersion: ");
-  hex_to_decimal(c->bcdTypeCVersion);
+  hex_to_decimal((unsigned)peek_le(c+14, 2));
 }
 
-static void print_connector_capability(struct connector_cap_data *c)
+static void print_connector_capability(unsigned char *c)
 {
-  union extendedoperationmode eom;
-  union miscellaneouscapabilities mc;
+  unsigned op = c[0], ext = get_bits(c, 14, 8);
+  unsigned misc = get_bits(c, 22, 4);
 
   printf("\nGET_CONNECTOR_CAPABILITY:\n-------------------------\n");
-  printf("OperationMode: 0x%x\n", c->opr_mode.raw_operationmode);
-  printf("  Rponly: %d\n", c->opr_mode.rponly);
-  printf("  Rdonly: %d\n", c->opr_mode.rdonly);
-  printf("  Drp: %d\n", c->opr_mode.drp);
-  printf("  AnalogAudioAccessorymode: %d\n",
-    c->opr_mode.analogaudioaccessorymode);
-  printf("  DebugAccessorymode: %d\n", c->opr_mode.debugaccessorymode);
-  printf("  Usb2: %d\n", c->opr_mode.usb2);
-  printf("  Usb3: %d\n", c->opr_mode.usb3);
-  printf("  AlternateMode: %d\n", c->opr_mode.alternatemode);
-  printf("Provider: %d\n", c->provider);
-  printf("Consumer: %d\n", c->consumer);
-  printf("SwapToDfp: %d\n", c->swap2dfp);
-  printf("SwapToUfp: %d\n", c->swap2ufp);
-  printf("SwapToSrc: %d\n", c->swap2src);
-  printf("SwapToSnk: %d\n", c->swap2snk);
-  printf("ExtendedOperationMode: 0x%x\n", c->extended_operation_mode);
-  eom.raw_extendedoperationmode = c->extended_operation_mode;
-  printf("  Usb4Gen2: %d\n", eom.usb4gen2);
-  printf("  EprSrc: %d\n", eom.eprsrc);
-  printf("  EprSnk: %d\n", eom.eprsnk);
-  printf("  Usb4Gen3: %d\n", eom.usb4gen3);
-  printf("  Usb4Gen4: %d\n", eom.usb4gen4);
-  printf("MiscellaneousCapabilities: 0x%x\n", c->miscellaneous_capabilities);
-  mc.raw_miscellaneouscapabilities = c->miscellaneous_capabilities;
-  printf("  FwUpdate: %d\n", mc.fwupdate);
-  printf("  Security: %d\n", mc.security);
-  printf("ReverseCurrentProtectionSupport: %d\n",
-    c->reverse_current_protection_support);
-  printf("PartnerPDRevision: %d\n", c->partner_pd_rev);
+  printf("OperationMode: 0x%x\n", op);
+  printf("  Rponly: %d\n", UCSI_BIT(op, 0));
+  printf("  Rdonly: %d\n", UCSI_BIT(op, 1));
+  printf("  Drp: %d\n", UCSI_BIT(op, 2));
+  printf("  AnalogAudioAccessorymode: %d\n", UCSI_BIT(op, 3));
+  printf("  DebugAccessorymode: %d\n", UCSI_BIT(op, 4));
+  printf("  Usb2: %d\n", UCSI_BIT(op, 5));
+  printf("  Usb3: %d\n", UCSI_BIT(op, 6));
+  printf("  AlternateMode: %d\n", UCSI_BIT(op, 7));
+  printf("Provider: %d\n", get_bits(c, 8, 1));
+  printf("Consumer: %d\n", get_bits(c, 9, 1));
+  printf("SwapToDfp: %d\n", get_bits(c, 10, 1));
+  printf("SwapToUfp: %d\n", get_bits(c, 11, 1));
+  printf("SwapToSrc: %d\n", get_bits(c, 12, 1));
+  printf("SwapToSnk: %d\n", get_bits(c, 13, 1));
+  printf("ExtendedOperationMode: 0x%x\n", ext);
+  printf("  Usb4Gen2: %d\n", UCSI_BIT(ext, 0));
+  printf("  EprSrc: %d\n", UCSI_BIT(ext, 1));
+  printf("  EprSnk: %d\n", UCSI_BIT(ext, 2));
+  printf("  Usb4Gen3: %d\n", UCSI_BIT(ext, 3));
+  printf("  Usb4Gen4: %d\n", UCSI_BIT(ext, 4));
+  printf("MiscellaneousCapabilities: 0x%x\n", misc);
+  printf("  FwUpdate: %d\n", UCSI_BIT(misc, 0));
+  printf("  Security: %d\n", UCSI_BIT(misc, 1));
+  printf("ReverseCurrentProtectionSupport: %d\n", get_bits(c, 26, 1));
+  printf("PartnerPDRevision: %d\n", get_bits(c, 27, 2));
 }
 
-static void print_connector_status(struct connector_status *c)
+static void print_connector_status(unsigned char *c)
 {
-  union connectorpartnerflags cpf;
+  unsigned change = (unsigned)peek_le(c, 2), flags = get_bits(c, 21, 8);
+  unsigned pom = get_bits(c, 16, 3), pdir = get_bits(c, 20, 1);
+  unsigned bc = get_bits(c, 64, 2), limit = get_bits(c, 66, 4);
+  unsigned cptype = get_bits(c, 29, 3), rdo = get_bits(c, 32, 32);
+  unsigned orient = get_bits(c, 86, 1), scale = get_bits(c, 90, 3);
+  unsigned voltage_scale = get_bits(c, 125, 4);
+  unsigned voltage = get_bits(c, 129, 16);
 
   printf("\nUCSI_GET_CONNECTOR_STATUS:\n-------------------------\n");
-  printf("ConnectorStatusChange: 0x%x\n",
-    c->ConnectorStatusChange.raw_conn_stschang);
-  printf("  ExternalSupplyChange: %d\n",
-    c->ConnectorStatusChange.ExternalSupplyChange);
-  printf("  Attention: %d\n", c->ConnectorStatusChange.Attention);
-  printf("  SupportedProviderCapabilitiesChange: %d\n",
-    c->ConnectorStatusChange.SupportedProviderCapabilitiesChange);
-  printf("  NegotiatedPowerLevelChange: %d\n",
-    c->ConnectorStatusChange.NegotiatedPowerLevelChange);
-  printf("  PDResetComplete: %d\n", c->ConnectorStatusChange.PDResetComplete);
-  printf("  SupportedCAMChange: %d\n",
-    c->ConnectorStatusChange.SupportedCAMChange);
-  printf("  BatteryChargingStatusChange: %d\n",
-    c->ConnectorStatusChange.BatteryChargingStatusChange);
-  printf("  ConnectorPartnerChanged: %d\n",
-    c->ConnectorStatusChange.ConnectorPartnerChanged);
-  printf("  PowerDirectionChanged: %d\n",
-    c->ConnectorStatusChange.PowerDirectionChanged);
-  printf("  SinkPathStatusChange: %d\n",
-    c->ConnectorStatusChange.SinkPathStatusChange);
-  printf("  ConnectChange: %d\n", c->ConnectorStatusChange.ConnectChange);
-  printf("  Error: %d\n", c->ConnectorStatusChange.Error);
-  printf("PowerOperationMode: %d\n", c->PowerOperationMode);
-  printf("  UsbDefaultOperation: %d\n", c->PowerOperationMode == 1);
-  printf("  BC: %d\n", c->PowerOperationMode == 2);
-  printf("  PD: %d\n", c->PowerOperationMode == 3);
-  printf("  UsbTypecCurrent1.5A: %d\n", c->PowerOperationMode == 4);
-  printf("  UsbTypecCurrent3A: %d\n", c->PowerOperationMode == 5);
-  printf("  UsbTypecCurrent5A: %d\n", c->PowerOperationMode == 6);
-  printf("ConnectStatus: %d\n", c->ConnectStatus);
-  printf("PowerDirection: %d\n", c->PowerDirection);
-  printf("  Consumer: %d\n", c->PowerDirection == 0);
-  printf("  Provider: %d\n", c->PowerDirection == 1);
-  printf("ConnectorPartnerFlags: 0x%x\n", c->ConnectorPartnerFlags);
-  cpf.raw_conn_part_flags = c->ConnectorPartnerFlags;
-  printf("  Usb: %d\n", cpf.usb);
-  printf("  Dp: %d\n", cpf.altmode);
-  printf("  Tbt: %d\n", cpf.usb4_gen3);
-  printf("  Usb4: %d\n", cpf.usb4_gen4);
-  printf("ConnectorPartnerType: %d\n", c->ConnectorPartnerType);
-  printf("  DFPattached: %d\n", c->ConnectorPartnerType == 1);
-  printf("  UFPattached: %d\n", c->ConnectorPartnerType == 2);
-  printf("  PoweredCableNoUFPattached: %d\n", c->ConnectorPartnerType == 3);
-  printf("  PoweredCableUFPattached: %d\n", c->ConnectorPartnerType == 4);
-  printf("  DebugAccessoryattched: %d\n", c->ConnectorPartnerType == 5);
-  printf("  AudioAccessoryAttached: %d\n", c->ConnectorPartnerType == 6);
-  printf("RequestDataObject: 0x%x\n", c->RequestDataObject);
-  printf("BatteryChargingCapabilityStatus: %d\n",
-    c->BatteryChargingCapabilityStatus);
-  printf("  NotCharging: %d\n", c->BatteryChargingCapabilityStatus == 0);
-  printf("  NominalChargingRate: %d\n",
-    c->BatteryChargingCapabilityStatus == 1);
-  printf("  SlowChargingRate: %d\n", c->BatteryChargingCapabilityStatus == 2);
-  printf("  VerySlowCharingRate: %d\n",
-    c->BatteryChargingCapabilityStatus == 3);
-  printf("ProviderCapabilitiesLimitedReason: %d\n",
-    c->ProviderCapabilitiesLimitedReason);
+  printf("ConnectorStatusChange: 0x%x\n", change);
+  printf("  ExternalSupplyChange: %d\n", UCSI_BIT(change, 1));
+  printf("  Attention: %d\n", UCSI_BIT(change, 3));
+  printf("  SupportedProviderCapabilitiesChange: %d\n", UCSI_BIT(change, 5));
+  printf("  NegotiatedPowerLevelChange: %d\n", UCSI_BIT(change, 6));
+  printf("  PDResetComplete: %d\n", UCSI_BIT(change, 7));
+  printf("  SupportedCAMChange: %d\n", UCSI_BIT(change, 8));
+  printf("  BatteryChargingStatusChange: %d\n", UCSI_BIT(change, 9));
+  printf("  ConnectorPartnerChanged: %d\n", UCSI_BIT(change, 11));
+  printf("  PowerDirectionChanged: %d\n", UCSI_BIT(change, 12));
+  printf("  SinkPathStatusChange: %d\n", UCSI_BIT(change, 13));
+  printf("  ConnectChange: %d\n", UCSI_BIT(change, 14));
+  printf("  Error: %d\n", UCSI_BIT(change, 15));
+  printf("PowerOperationMode: %d\n", pom);
+  printf("  UsbDefaultOperation: %d\n", pom == UCSI_POM_USB_DEFAULT);
+  printf("  BC: %d\n", pom == UCSI_POM_BC);
+  printf("  PD: %d\n", pom == UCSI_POM_PD);
+  printf("  UsbTypecCurrent1.5A: %d\n", pom == UCSI_POM_TYPEC_1_5A);
+  printf("  UsbTypecCurrent3A: %d\n", pom == UCSI_POM_TYPEC_3A);
+  printf("  UsbTypecCurrent5A: %d\n", pom == UCSI_POM_TYPEC_5A);
+  printf("ConnectStatus: %d\n", get_bits(c, 19, 1));
+  printf("PowerDirection: %d\n", pdir);
+  printf("  Consumer: %d\n", pdir == UCSI_POWER_CONSUMER);
+  printf("  Provider: %d\n", pdir == UCSI_POWER_PROVIDER);
+  printf("ConnectorPartnerFlags: 0x%x\n", flags);
+  printf("  Usb: %d\n", UCSI_BIT(flags, 0));
+  printf("  Dp: %d\n", UCSI_BIT(flags, 1));
+  printf("  Tbt: %d\n", UCSI_BIT(flags, 2));
+  printf("  Usb4: %d\n", UCSI_BIT(flags, 3));
+  printf("ConnectorPartnerType: %d\n", cptype);
+  printf("  DFPattached: %d\n", cptype == UCSI_PARTNER_DFP);
+  printf("  UFPattached: %d\n", cptype == UCSI_PARTNER_UFP);
+  printf("  PoweredCableNoUFPattached: %d\n",
+    cptype == UCSI_PARTNER_POWERED_CABLE_NO_UFP);
+  printf("  PoweredCableUFPattached: %d\n",
+    cptype == UCSI_PARTNER_POWERED_CABLE_UFP);
+  printf("  DebugAccessoryattched: %d\n",
+    cptype == UCSI_PARTNER_DEBUG_ACCESSORY);
+  printf("  AudioAccessoryAttached: %d\n",
+    cptype == UCSI_PARTNER_AUDIO_ACCESSORY);
+  printf("RequestDataObject: 0x%x\n", rdo);
+  printf("BatteryChargingCapabilityStatus: %d\n", bc);
+  printf("  NotCharging: %d\n", bc == UCSI_BC_NOT_CHARGING);
+  printf("  NominalChargingRate: %d\n", bc == UCSI_BC_NOMINAL);
+  printf("  SlowChargingRate: %d\n", bc == UCSI_BC_SLOW);
+  printf("  VerySlowCharingRate: %d\n", bc == UCSI_BC_VERY_SLOW);
+  printf("ProviderCapabilitiesLimitedReason: %d\n", limit);
   printf("bcdPDVersionOperationMode: ");
-  hex_to_decimal(c->bcdPDVersionOperationMode);
-  printf("Orientation: %d\n", c->Orientation);
-  printf("  DirectOrientation : %d\n", c->Orientation == 0);
-  printf("  FlippedOrientation : %d\n", c->Orientation == 1);
-  printf("SinkPathStatus: %d\n", c->SinkPathStatus);
-  printf("ReverseCurrentProtectionStatus: %d\n",
-    c->ReverseCurrentProtectionStatus);
-  printf("PowerReadingReady: %d\n", c->PowerReadingReady);
-  printf("CurrentScale: %d\n", c->CurrentScale);
-  printf("PeakCurrent: %d\n", c->PeakCurrent);
-  printf("AverageCurrent: %d\n", c->AverageCurrent);
-  printf("VoltageScale: %d\n", c->VoltageScale);
-  printf("VoltageReading: %d\n", c->VoltageReading);
-  printf("Voltage: %d\n", c->VoltageReading * c->VoltageScale * 5);
+  hex_to_decimal(get_bits(c, 70, 16));
+  printf("Orientation: %d\n", orient);
+  printf("  DirectOrientation : %d\n", orient == UCSI_ORIENTATION_DIRECT);
+  printf("  FlippedOrientation : %d\n", orient == UCSI_ORIENTATION_FLIPPED);
+  printf("SinkPathStatus: %d\n", get_bits(c, 87, 1));
+  printf("ReverseCurrentProtectionStatus: %d\n", get_bits(c, 88, 1));
+  printf("PowerReadingReady: %d\n", get_bits(c, 89, 1));
+  printf("CurrentScale: %d\n", scale);
+  printf("PeakCurrent: %d\n", get_bits(c, 93, 16));
+  printf("AverageCurrent: %d\n", get_bits(c, 109, 16));
+  printf("VoltageScale: %d\n", voltage_scale);
+  printf("VoltageReading: %d\n", voltage);
+  printf("Voltage: %d\n", voltage * voltage_scale * 5);
 }
 
-static void print_cable_property(struct cable_property *c)
+static void print_cable_property(unsigned char *c)
 {
+  unsigned speed = (unsigned)peek_le(c, 2), speed_unit = get_bits(c, 0, 2);
+  unsigned current = get_bits(c, 16, 8);
+  unsigned cable_type = get_bits(c, 25, 1), plug = get_bits(c, 27, 2);
+
   printf("\nGET_CABLE_PROPERTY:\n-------------------------\n");
-  printf("bmSpeedSupported: 0x%x\n", c->speed_supported);
-  printf("  Bits/s: %d\n", (c->speed_supported & 0x3) == 0);
-  printf("  Kb/s: %d\n", (c->speed_supported & 0x3) == 1);
-  printf("  Mb/s: %d\n", (c->speed_supported & 0x3) == 2);
-  printf("  Gb/s: %d\n", (c->speed_supported & 0x3) == 3);
-  printf("bCurrentCapability: %d mA\n", c->current_capability * 50);
-  printf("VBUSInCable: %d\n", c->vbus_support);
-  printf("CableType: %d\n", c->cable_type);
-  printf("  PassiveCable: %d\n", c->cable_type == 0);
-  printf("  ActiveCable: %d\n", c->cable_type == 1);
-  printf("Directionality: %d\n", c->directionality);
-  printf("PlugEndType: %d\n", c->plug_end_type);
-  printf("  USBtypeA: %d\n", c->plug_end_type == 0);
-  printf("  USBtypeB: %d\n", c->plug_end_type == 1);
-  printf("  USBtypeC: %d\n", c->plug_end_type == 2);
-  printf("  Other: %d\n", c->plug_end_type == 3);
-  printf("ModeSupport: %d\n", c->mode_support);
-  printf("CablePDRevision: %d\n", c->cable_pd_revision);
-  printf("Latency: %d\n", c->latency);
+  printf("bmSpeedSupported: 0x%x\n", speed);
+  printf("  Bits/s: %d\n", speed_unit == UCSI_CABLE_SPEED_BITS);
+  printf("  Kb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_KBPS);
+  printf("  Mb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_MBPS);
+  printf("  Gb/s: %d\n", speed_unit == UCSI_CABLE_SPEED_GBPS);
+  printf("bCurrentCapability: %d mA\n", current * 50);
+  printf("VBUSInCable: %d\n", get_bits(c, 24, 1));
+  printf("CableType: %d\n", cable_type);
+  printf("  PassiveCable: %d\n", cable_type == UCSI_CABLE_PASSIVE);
+  printf("  ActiveCable: %d\n", cable_type == UCSI_CABLE_ACTIVE);
+  printf("Directionality: %d\n", get_bits(c, 26, 1));
+  printf("PlugEndType: %d\n", plug);
+  printf("  USBtypeA: %d\n", plug == UCSI_PLUG_TYPE_A);
+  printf("  USBtypeB: %d\n", plug == UCSI_PLUG_TYPE_B);
+  printf("  USBtypeC: %d\n", plug == UCSI_PLUG_TYPE_C);
+  printf("  Other: %d\n", plug == UCSI_PLUG_OTHER);
+  printf("ModeSupport: %d\n", get_bits(c, 29, 1));
+  printf("CablePDRevision: %d\n", get_bits(c, 30, 2));
+  printf("Latency: %d\n", get_bits(c, 32, 4));
 }
 
-static void print_lpm_ppm_info(struct get_lpm_ppm_info *c)
+static void print_lpm_ppm_info(unsigned char *c)
 {
+  unsigned fw_upper = peek_le(c+8, 4), fw_lower = peek_le(c+12, 4);
+
   printf("\nGET_LPM_PPM_INFO :\n-------------------------\n");
-  printf("VID: 0x%x\n", c->vid);
-  printf("PID: 0x%x\n", c->pid);
-  printf("XID: 0x%x\n", c->xid);
-  printf("FW Ver: %u.%u\n", c->fw_version_upper, c->fw_version_lower);
-  printf("HW Ver: %u\n", c->hw_version);
+  printf("VID: 0x%x\n", (unsigned)peek_le(c, 2));
+  printf("PID: 0x%x\n", (unsigned)peek_le(c+2, 2));
+  printf("XID: 0x%x\n", (unsigned)peek_le(c+4, 4));
+  printf("FW Ver: %u.%u\n", fw_upper, fw_lower);
+  printf("HW Ver: %u\n", (unsigned)peek_le(c+16, 4));
 }
 
-static void print_error_status(struct get_error_status *c)
+static void print_error_status(unsigned char *c)
 {
+  unsigned e = (unsigned)peek_le(c, 2);
+
   printf("\nGET_ERROR_STATUS :\n-------------------------\n");
   printf("ErrorInformation:\n");
-  printf("  UnrecognizedCmd: %d\n", c->error_info.unrecognized_command);
-  printf("  NonExistentConnectorNum: %d\n",
-    c->error_info.nonexistent_connector_number);
-  printf("  InvalidCmdSpecificParam: %d\n",
-    c->error_info.invalid_cmd_specific_params);
-  printf("  IncompatibleConnectorPartner: %d\n",
-    c->error_info.incompatible_connector_partner);
-  printf("  CCcommunicationError: %d\n", c->error_info.cc_comm_error);
-  printf("  CmdUnsuccessDeadBattery: %d\n",
-    c->error_info.cmd_unsuccessful_dead_battery);
-  printf("  ContractNegotiationFailure: %d\n",
-    c->error_info.contract_negotiation_failure);
-  printf("  OverCurrent: %d\n", c->error_info.overcurrent);
-  printf("  Undefined: %d\n", c->error_info.undefined);
-  printf("  PortPartnerRejectSwap: %d\n",
-    c->error_info.port_partner_reject_swap);
-  printf("  HardReset: %d\n", c->error_info.hard_reset);
-  printf("  PpmPolicyConflict: %d\n", c->error_info.ppm_policy_conflict);
-  printf("  SwapRejected: %d\n", c->error_info.swap_rejected);
-  printf("  ReverseCurrentProtection: %d\n",
-    c->error_info.reverse_current_protection);
-  printf("  SetSinkPathRejected: %d\n", c->error_info.set_sink_path_rejected);
-  printf("VendorDefined: 0x%x\n", c->vendor_defined);
+  printf("  UnrecognizedCmd: %d\n", UCSI_BIT(e, 0));
+  printf("  NonExistentConnectorNum: %d\n", UCSI_BIT(e, 1));
+  printf("  InvalidCmdSpecificParam: %d\n", UCSI_BIT(e, 2));
+  printf("  IncompatibleConnectorPartner: %d\n", UCSI_BIT(e, 3));
+  printf("  CCcommunicationError: %d\n", UCSI_BIT(e, 4));
+  printf("  CmdUnsuccessDeadBattery: %d\n", UCSI_BIT(e, 5));
+  printf("  ContractNegotiationFailure: %d\n", UCSI_BIT(e, 6));
+  printf("  OverCurrent: %d\n", UCSI_BIT(e, 7));
+  printf("  Undefined: %d\n", UCSI_BIT(e, 8));
+  printf("  PortPartnerRejectSwap: %d\n", UCSI_BIT(e, 9));
+  printf("  HardReset: %d\n", UCSI_BIT(e, 10));
+  printf("  PpmPolicyConflict: %d\n", UCSI_BIT(e, 11));
+  printf("  SwapRejected: %d\n", UCSI_BIT(e, 12));
+  printf("  ReverseCurrentProtection: %d\n", UCSI_BIT(e, 13));
+  printf("  SetSinkPathRejected: %d\n", UCSI_BIT(e, 14));
+  printf("VendorDefined: 0x%x\n", (unsigned)peek_le(c+2, 2));
 }
 
-// Map a string role to its UCSI code, or error out.
 static int role_code(char *s, char *a, char *b, char *c, int va, int vb, int vc)
 {
   if (!strcmp(s, a)) return va;
   if (!strcmp(s, b)) return vb;
   if (!strcmp(s, c)) return vc;
   error_exit("Invalid type: %s", s);
+}
+
+// Common <conn_num> parser for single-connector commands.
+static int required_conn(char **args, char *op)
+{
+  if (!args[1]) error_exit("%s needs <conn_num>", op);
+
+  return get_conn(args[1]);
 }
 
 void ucsicontrol_main(void)
@@ -649,35 +517,31 @@ void ucsicontrol_main(void)
   ucsi_open();
 
   if (!strcmp(op, "get_cap")) {
-    if ((n = ucsi_xfer("6", buf)) < 16) error_exit("get_capability failed");
+    n = xucsi_cmd(UCSI_CMD_GET_CAPABILITY, buf, "get_capability");
     print_message_in(buf, n);
-    print_capability((void *)buf);
+    print_capability(buf);
   } else if (!strcmp(op, "get_conn_cap")) {
-    if (!args[1]) error_exit("get_conn_cap needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x7);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16) error_exit("get_conn_cap failed");
+    conn = required_conn(args, "get_conn_cap");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_CONNECTOR_CAPABILITY, buf, "get_conn_cap");
     print_message_in(buf, n);
-    print_connector_capability((void *)buf);
+    print_connector_capability(buf);
   } else if (!strcmp(op, "get_conn_sts")) {
-    if (!args[1]) error_exit("get_conn_sts needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x12);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16) error_exit("get_conn_sts failed");
-    print_message_in(buf, sizeof(struct connector_status));
-    print_connector_status((void *)buf);
+    conn = required_conn(args, "get_conn_sts");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_CONNECTOR_STATUS, buf, "get_conn_sts");
+    print_message_in(buf, UCSI_CONNECTOR_STATUS_LEN);
+    print_connector_status(buf);
   } else if (!strcmp(op, "get_cable_prop")) {
-    if (!args[1]) error_exit("get_cable_prop needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x11);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16) error_exit("get_cable_prop failed");
-    print_message_in(buf, sizeof(struct cable_property));
-    print_cable_property((void *)buf);
+    conn = required_conn(args, "get_cable_prop");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_CABLE_PROPERTY, buf, "get_cable_prop");
+    print_message_in(buf, UCSI_CABLE_PROPERTY_LEN);
+    print_cable_property(buf);
   } else if (!strcmp(op, "get_cur_cam")) {
-    if (!args[1]) error_exit("get_cur_cam needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x0E);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16) error_exit("get_cur_cam failed");
+    conn = required_conn(args, "get_cur_cam");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_CURRENT_CAM, buf, "get_cur_cam");
     print_message_in(buf, n);
     printf("\nGET_CURRENT_CAM :\n-------------------------\n");
     printf("CurrentAlternateMode: 0x%x\n", buf[0]);
@@ -699,33 +563,27 @@ void ucsicontrol_main(void)
     for (;;) {
       // GET_ALTERNATE_MODES (0x0C): Recipient[16], ConnNum[24],
       // AltModeOffset[32], NumAltModes[40]=1 -> up to 2 modes per call.
-      unsigned long long cmd = 0x0cULL
+      unsigned long long cmd = UCSI_CMD_GET_ALTERNATE_MODES
         | ((unsigned long long)(recipient & 0x7)  << 16)
-        | ((unsigned long long)((conn+1) & 0x7f) << 24)
+        | ((unsigned long long)(UCSI_CONNECTOR_NUM(conn) & 0x7f) << 24)
         | ((unsigned long long)(i & 0xff)        << 32)
         | (1ULL << 40);
       unsigned short svid0, svid1;
       unsigned mid0, mid1;
 
-      sprintf(toybuf, "0x%llx", cmd);
-      // An exhausted recipient offset returns an empty/short response.
-      if ((n = ucsi_xfer(toybuf, buf)) < 16) break;
-      // Some LPMs are not UCSI-compliant at the end of the alternate mode
-      // list: instead of returning a zero/short response, the chip replays the
-      // previous MESSAGE_IN and only refreshes the leading SVID field (bytes
-      // 0-1) with stale/garbage, leaving mid0, the second mode field and the
-      // trailing bytes identical. A real next-offset response would carry a
-      // different MID, so treat "everything past svid0 is unchanged" as the end
-      // of the list and stop before printing the phantom mode.
+      // End of list is usually an empty/short response.
+      if ((n = ucsi_cmd(cmd, buf)) < UCSI_MIN_MESSAGE_IN_LEN) break;
+      // Some LPMs replay the previous response with only stale svid0 changed.
+      // Treat unchanged bytes after svid0 as end of list.
       if (i && n == prevn && !memcmp(buf + 2, prev + 2, n - 2)) break;
       memcpy(prev, buf, n);
       prevn = n;
 
-      // Table 6-26 response: SVID[0]@0 MID[0]@2 SVID[1]@6 MID[1]@8
-      svid0 = buf[1]<<8 | buf[0];
-      mid0  = buf[5]<<24 | buf[4]<<16 | buf[3]<<8 | buf[2];
-      svid1 = buf[7]<<8 | buf[6];
-      mid1  = buf[11]<<24 | buf[10]<<16 | buf[9]<<8 | buf[8];
+      // Table 6-26: SVID[0]@0 MID[0]@2 SVID[1]@6 MID[1]@8.
+      svid0 = peek_le(buf, 2);
+      mid0  = peek_le(buf+2, 4);
+      svid1 = peek_le(buf+6, 2);
+      mid1  = peek_le(buf+8, 4);
 
       if (!svid0) break;
       // LPM repeats the same response when offset is exhausted; stop on wrap.
@@ -759,35 +617,33 @@ void ucsicontrol_main(void)
     type = atolx(args[5]);
     printf("\nGET_PDOS :\n-------------------------\n");
     for (;;) {
-      unsigned long long cmd = 0x10 | ((unsigned long long)(conn+1)<<16)
+      unsigned long long cmd = UCSI_CMD_GET_PDOS
+        | ((unsigned long long)UCSI_CMD_CONNECTOR(conn))
         | ((unsigned long long)(partner&1)<<23)
         | ((unsigned long long)((offset+i)&0xff)<<24)
         | ((unsigned long long)(srcsnk&1)<<34)
         | ((unsigned long long)(type&3)<<35);
 
-      sprintf(toybuf, "0x%llx", cmd);
-      if ((n = ucsi_xfer(toybuf, buf)) < 16) break;
-      pdo = buf[3]<<24 | buf[2]<<16 | buf[1]<<8 | buf[0];
+      if ((n = ucsi_cmd(cmd, buf)) < UCSI_MIN_MESSAGE_IN_LEN) break;
+      print_message_in(buf, n);
+      pdo = peek_le(buf, 4);
       if (!pdo || pdo == ppdo) break;
-      printf("PDO [%d]: 0x%x\n", i, pdo);
+      printf("PDO [%d]: 0x%x\n\n", i, pdo);
       ppdo = pdo;
       i++;
     }
   } else if (!strcmp(op, "get_lpm_ppm_info")) {
-    if (!args[1]) error_exit("get_lpm_ppm_info needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x22);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16)
-      error_exit("get_lpm_ppm_info failed");
+    conn = required_conn(args, "get_lpm_ppm_info");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_LPM_PPM_INFO, buf, "get_lpm_ppm_info");
     print_message_in(buf, n);
-    print_lpm_ppm_info((void *)buf);
+    print_lpm_ppm_info(buf);
   } else if (!strcmp(op, "get_error_sts")) {
-    if (!args[1]) error_exit("get_error_sts needs <conn_num>");
-    conn = get_conn(args[1]);
-    sprintf(toybuf, "0x%x", (conn+1)<<16 | 0x13);
-    if ((n = ucsi_xfer(toybuf, buf)) < 16) error_exit("get_error_sts failed");
+    conn = required_conn(args, "get_error_sts");
+    n = xucsi_cmd(UCSI_CMD_CONNECTOR(conn)
+      | UCSI_CMD_GET_ERROR_STATUS, buf, "get_error_sts");
     print_message_in(buf, n);
-    print_error_status((void *)buf);
+    print_error_status(buf);
   } else if (!strcmp(op, "conn_rst")) {
     int rst;
 
@@ -795,10 +651,10 @@ void ucsicontrol_main(void)
       error_exit("conn_rst needs <conn_num> <soft|hard>");
     conn = get_conn(args[1]);
     rst = role_code(args[2], "soft", "hard", "", 0, 1, -1);
-    sprintf(toybuf, "0x%x", 0x03 | ((conn+1)<<16) | (rst<<23));
-    n = ucsi_xfer(toybuf, buf);
+    n = ucsi_cmd(UCSI_CMD_CONNECTOR_RESET | UCSI_CMD_CONNECTOR(conn)
+      | (rst<<23), buf);
     printf("connector%d %s reset%s\n", conn, rst ? "hard" : "soft",
-      n < 16 ? " failed" : "");
+      n < UCSI_MIN_MESSAGE_IN_LEN ? " failed" : "");
   } else if (!strcmp(op, "set_uor")) {
     int uor;
 
@@ -806,10 +662,10 @@ void ucsicontrol_main(void)
       error_exit("set_uor needs <conn_num> <DFP|UFP|Accept>");
     conn = get_conn(args[1]);
     uor = role_code(args[2], "DFP", "UFP", "Accept", 1, 2, 4);
-    sprintf(toybuf, "0x%x", 0x09 | ((conn+1)<<16) | ((0x4|uor)<<23));
-    n = ucsi_xfer(toybuf, buf);
+    n = ucsi_cmd(UCSI_CMD_SET_UOR | UCSI_CMD_CONNECTOR(conn)
+      | ((0x4|uor)<<23), buf);
     printf("connector%d set data role operation %s%s\n", conn, args[2],
-      n < 16 ? " failed" : "");
+      n < UCSI_MIN_MESSAGE_IN_LEN ? " failed" : "");
   } else if (!strcmp(op, "set_pdr")) {
     int pdr;
 
@@ -817,10 +673,10 @@ void ucsicontrol_main(void)
       error_exit("set_pdr needs <conn_num> <SRC|SNK|Accept>");
     conn = get_conn(args[1]);
     pdr = role_code(args[2], "SRC", "SNK", "Accept", 1, 2, 4);
-    sprintf(toybuf, "0x%x", 0x0B | ((conn+1)<<16) | (pdr<<23));
-    n = ucsi_xfer(toybuf, buf);
+    n = ucsi_cmd(UCSI_CMD_SET_PDR | UCSI_CMD_CONNECTOR(conn) | (pdr<<23),
+      buf);
     printf("connector%d power role swap operation %s%s\n", conn, args[2],
-      n < 16 ? " failed" : "");
+      n < UCSI_MIN_MESSAGE_IN_LEN ? " failed" : "");
   } else if (!strcmp(op, "set_ccom")) {
     int ccom;
 
@@ -828,10 +684,10 @@ void ucsicontrol_main(void)
       error_exit("set_ccom needs <conn_num> <Rd|Rp|DRP>");
     conn = get_conn(args[1]);
     ccom = role_code(args[2], "Rd", "Rp", "DRP", 1, 2, 4);
-    sprintf(toybuf, "0x%x", 0x08 | ((conn+1)<<16) | (ccom<<23));
-    n = ucsi_xfer(toybuf, buf);
+    n = ucsi_cmd(UCSI_CMD_SET_CCOM | UCSI_CMD_CONNECTOR(conn) | (ccom<<23),
+      buf);
     printf("connector%d set cc operation mode %s%s\n", conn, args[2],
-      n < 16 ? " failed" : "");
+      n < UCSI_MIN_MESSAGE_IN_LEN ? " failed" : "");
   } else if (!strcmp(op, "set_new_cam")) {
     int ee, newcam;
     unsigned amspec;
@@ -843,12 +699,13 @@ void ucsicontrol_main(void)
     newcam = atolx(args[2]);
     amspec = atolx(args[3]);
     ee = role_code(args[4], "enter", "exit", "", 1, 0, -1);
-    sprintf(toybuf, "0x%lx", 0x0FUL | ((unsigned long)(conn+1)<<16)
-      | ((unsigned long)(ee&1)<<23) | ((unsigned long)(newcam&0xff)<<24)
-      | ((unsigned long)amspec<<32));
-    n = ucsi_xfer(toybuf, buf);
+    n = ucsi_cmd(UCSI_CMD_SET_NEW_CAM
+      | ((unsigned long long)UCSI_CMD_CONNECTOR(conn))
+      | ((unsigned long long)(ee&1)<<23)
+      | ((unsigned long long)(newcam&0xff)<<24)
+      | ((unsigned long long)amspec<<32), buf);
     printf("connector%d set new cam %s%s\n", conn, args[4],
-      n < 16 ? " failed" : "");
+      n < UCSI_MIN_MESSAGE_IN_LEN ? " failed" : "");
   } else {
     ucsi_close();
     error_exit("Unknown command: %s", op);
