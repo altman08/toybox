@@ -18,8 +18,6 @@ do_bloatcheck()
 {
   LASTNAME= DELTA=0 TOTAL=0 OLD=0 NEW=0 STUFF=
 
-  printf "name% 46s% 10s% 11s\n" old new delta
-  echo "-----------------------------------------------------------------------"
   while read a b c d
   do
     THISNAME=$(echo "$d" | sed 's/[.][0-9]*$//')
@@ -48,9 +46,16 @@ do_bloatcheck()
   TOTAL=$(($TOTAL+$DELTA))
   [ $DELTA -ne 0 ] && addline
 
-  echo "$STUFF" | sort -k4,4nr
-  echo "-----------------------------------------------------------------------"
-  printf "% 71d total\n" "$TOTAL"
+  if [ $TOTAL -eq 0 ]
+  then
+    echo "No change."
+  else
+    printf "name% 46s% 10s% 11s\n" old new delta
+    printf '%71s\n' | tr ' ' -
+    echo "$STUFF" | sort -k4,4nr
+    printf '%71s\n' "" | tr ' ' -
+    printf "% 71d total\n" "$TOTAL"
+  fi
 }
 
 diff -U 0 <(nm --size-sort "$1"|sort -k 3,3) <(nm --size-sort "$2"|sort -k 3,3)\
