@@ -12,6 +12,10 @@
 #define NEWTOY(name, opts, flags) {#name, name##_main, OPTSTR_##name, flags},
 #define OLDTOY(name, oldname, flags) \
   {#name, oldname##_main, OPTSTR_##oldname, flags},
+// sticking "const" on this doesn't help because it's got function pointers
+// in its initializer. In theory static binaries should still be able to put
+// it in rodata, but neither gcc nor llvm is smart enough to do so, and
+// neither static PIE nor fdpic would benefit.
 struct toy_list toy_list[] = {
 #include "generated/newtoys.h"
 };
@@ -20,7 +24,8 @@ struct toy_list toy_list[] = {
 
 struct toy_context toys;
 union global_union this;
-char *toybox_version = TOYBOX_VERSION, toybuf[4096], libbuf[4096];
+char toybuf[4096], libbuf[4096];
+const char *toybox_version = TOYBOX_VERSION;
 
 struct toy_list *toy_find(char *name)
 {
