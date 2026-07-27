@@ -100,6 +100,7 @@ static void outline(char *line, char dash, char *name, long lcount, long bcount,
   }
 }
 
+// -w whole word match
 static int matchw(char *line, char *start, long so, long eo)
 {
   if (FLAG(w)) {
@@ -403,7 +404,7 @@ static void parse_regex(void)
   for (last = &TT.e; *last;) {
     // Can we use the fast path?
     s = (*last)->arg;
-    if ('.'!=*s && !FLAG(F) && strcmp(s, "^$")) for (; *s; s++) {
+    if ('.'!=s[*s=='^'] && !FLAG(F) && strcmp(s, "^$")) for (; *s; s++) {
       if (*s=='\\') {
         if (!s[1] || !strchr(special, *++s)) break;
         if (!FLAG(E) && *s=='(') break;

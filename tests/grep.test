@@ -108,6 +108,7 @@ testcmd "-w '$'" "-w '\$'" '' '' 'abc  abc\n'
 testcmd "-w '$' 2" "-w '\$'" 'abc \n' '' 'abc \n'
 testcmd "'^' is ''" "'^'" 'potato\n' '' 'potato\n'
 testcmd "'^' is '' 2" "'^x*'" 'potato\n' '' 'potato\n'
+testcmd "'^.' fastpath" "'^.'" 'hello\n' '' 'hello\n'
 testcmd "-w '^'" "-w '^'" '' '' 'abc  abc\n'
 testcmd "-w '^' 2" "-w '^'" ' abc\n' '' ' abc\n'
 testcmd "-w \\1" "-wo '\\(x\\)\\1'" "xx\n" "" "xx"
