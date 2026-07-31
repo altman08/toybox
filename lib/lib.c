@@ -523,16 +523,6 @@ int strcasestart(char **a, char *b)
   return i;
 }
 
-// return length of match found at this point (try is null terminated array)
-int anystart(char *s, char **try)
-{
-  char *ss = s;
-
-  while (*try) if (strstart(&s, *try++)) return s-ss;
-
-  return 0;
-}
-
 // does this entire string match one of the strings in try[]?
 // Returns 0 if not, index+1 if so
 int anystr(char *s, char **try)

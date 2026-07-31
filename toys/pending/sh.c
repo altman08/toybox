@@ -451,6 +451,18 @@ GLOBALS(
   struct sh_arg jobs, *wcdeck;
 )
 
+// Return length of string found in concatenated list of null terminated
+// strings (ending with \0\0), or 0 if not found.
+static int anystrz(char *find, char *list)
+{
+  int len;
+
+  for (;(len = strlen(list)); list += len+1)
+    if (strstart(&find, list)) return len;
+
+  return 0;
+}
+
 #define DEBUG 0
 
 static void debug_show_fds(char *who)
@@ -480,8 +492,8 @@ static struct sh_vars *setvar(char *str);
 // ordered for greedy matching, so >&; becomes >& ; not > &;
 // making these const means I need to typecast the const away later to
 // avoid endless warnings.
-static const char *redirectors[] = {"<<<", "<<-", "<<", "<&", "<>", "<", ">>",
-  ">&", ">|", ">", "&>>", "&>", 0};
+static const char *redirectors = "<<<\0<<-\0<<\0<&\0<>\0<\0>>\0>&\0>|\0>\0&>>\0"
+  "&>\0";
 
 // The order of these has to match the string in set_main()
 #define OPT_B	0x100
@@ -1176,7 +1188,7 @@ static char *parse_word(char *start, int early)
   if (strstart(&ss, "<(") || strstart(&ss, ">(")) {
     toybuf[quote++]=')';
     end = ss;
-  } else if ((ii = anystart(ss, (void *)redirectors))) return ss+ii;
+  } else if ((ii = anystrz(ss, redirectors))) return ss+ii;
   if (strstart(&end, "((")) toybuf[quote++] = 254;
 
   // Loop to find end of this word
@@ -1209,9 +1221,8 @@ static char *parse_word(char *start, int early)
     // space and flow control chars only end word when not quoted in any way
     } else {
       if (isspace(*end)) break;
-      ss = end + anystart(end, (char *[]){";;&", ";;", ";&", ";", "||",
-        "|&", "|", "&&", "&", "(", ")", 0});
-      if (ss==end) ss += anystart(end, (void *)redirectors);
+      ss = end + anystrz(end, ";;&\0;;\0;&\0;\0||\0|&\0|\0&&\0&\0(\0)\0");
+      if (ss==end) ss += anystrz(end, redirectors);
       if (ss!=end) return (end==start) ? ss : end;
     }
 
@@ -2656,7 +2667,7 @@ static int expand_redir(struct sh_process *pp, struct sh_arg *arg, int skip)
 
     // Is this a redirect? s = prefix, ss = operator
     ss = skip_redir_prefix(s);
-    sss = ss + anystart(ss, (void *)redirectors);
+    sss = ss + anystrz(ss, redirectors);
     if (ss == sss) {
       // Nope: save/expand argument and loop
       if (expand_arg(&pp->arg, s, 0, &pp->delete)) goto qfail;
@@ -2958,7 +2969,7 @@ static struct sh_process *run_command(int local)
   // Collect leading redirects and prefix assignments
   if (!skiplen) for (; ii<arg->c && !pp->exit; ii++) {
     // Need to use original arg for <<HERE, so adjust ->c and provide skip
-    if (anystart(skip_redir_prefix(s = arg->v[ii]), (void *)redirectors)) {
+    if (anystrz(skip_redir_prefix(s = arg->v[ii]), redirectors)) {
       if ((skiplen = ii)<(jj = arg->c)) ii++;
       arg->c = ii+1;
       // TODO should expand_redir() understand 1-skiplen to avoid arg->c swap?
@@ -3340,7 +3351,7 @@ if (DEBUG) dprintf(2, "%d %p(%d) %s word=%.*s\n", getpid(), pl, pl ? pl->type : 
       // ! x=y and x<y can all go before command name
       if (!strcmp(s, "!")) start = 0;
       else if ((start = varend(s))!=s && start[*start=='+']=='=') start = 0;
-      else if (anystart(skip_redir_prefix(s), (void *)redirectors)) {
+      else if (anystrz(skip_redir_prefix(s), redirectors)) {
         pl->noalias = -2;
         start = 0;
       }
