@@ -87,13 +87,13 @@ static const int NEED_TRIMHELP =
 
 #if CFG_TOYBOX_ZHELP
 #include "generated/zhelp.h"
-static char *help_data = 0;
+static const char *help_data = 0;
 #else
 #include "generated/help.h"
 static const char help_array[] =
 #include "generated/newtoys.h"
 ;
-static char *help_data = (void *)help_array;
+static const char *help_data = help_array;
 #define zhelp_data 0
 #define ZHELP_LEN 0
 #endif
@@ -115,7 +115,7 @@ void show_help(int flags)
       : " (see https://landley.net/toybox)");
 
   for (;;) {
-    for (s = (void *)help_data; i--; s += strlen(s)+1);
+    for (s = help_data; i--; s += strlen(s)+1);
     // If it's an alias, restart search for real name
     if (*s != 255) break;
     i = toy_find(++s)-toy_list;
