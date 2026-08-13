@@ -65,7 +65,46 @@ GLOBALS(
   int chip_count;
 )
 
+// linux/gpio.h added in Linux 4.8 (commit 159f3cd9eca9)
+#if __has_include(<linux/gpio.h>)
 #include <linux/gpio.h>
+#else
+#define GPIO_MAX_NAME_SIZE 32
+struct gpiochip_info {
+  char name[GPIO_MAX_NAME_SIZE];
+  char label[GPIO_MAX_NAME_SIZE];
+  unsigned int lines;
+};
+#define GPIOLINE_FLAG_KERNEL      (1UL<<0)
+#define GPIOLINE_FLAG_IS_OUT      (1UL<<1)
+#define GPIOLINE_FLAG_ACTIVE_LOW  (1UL<<2)
+struct gpioline_info {
+  unsigned int line_offset;
+  unsigned int flags;
+  char name[GPIO_MAX_NAME_SIZE];
+  char consumer[GPIO_MAX_NAME_SIZE];
+};
+#define GPIOHANDLES_MAX 64
+#define GPIOHANDLE_REQUEST_INPUT       (1UL<<0)
+#define GPIOHANDLE_REQUEST_OUTPUT      (1UL<<1)
+#define GPIOHANDLE_REQUEST_ACTIVE_LOW  (1UL<<2)
+struct gpiohandle_request {
+  unsigned int lineoffsets[GPIOHANDLES_MAX];
+  unsigned int flags;
+  unsigned char default_values[GPIOHANDLES_MAX];
+  char consumer_label[GPIO_MAX_NAME_SIZE];
+  unsigned int lines;
+  int fd;
+};
+struct gpiohandle_data {
+  unsigned char values[GPIOHANDLES_MAX];
+};
+#define GPIO_GET_CHIPINFO_IOCTL     _IOR(0xB4, 0x01, struct gpiochip_info)
+#define GPIO_GET_LINEINFO_IOCTL     _IOWR(0xB4, 0x02, struct gpioline_info)
+#define GPIO_GET_LINEHANDLE_IOCTL   _IOWR(0xB4, 0x03, struct gpiohandle_request)
+#define GPIOHANDLE_GET_LINE_VALUES_IOCTL _IOWR(0xB4, 0x08, struct gpiohandle_data)
+#define GPIOHANDLE_SET_LINE_VALUES_IOCTL _IOWR(0xB4, 0x09, struct gpiohandle_data)
+#endif
 
 static int open_chip(char *chip)
 {

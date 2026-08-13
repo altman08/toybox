@@ -77,6 +77,29 @@ GLOBALS(
 #ifndef FS_VERITY_FL
 #define FS_VERITY_FL      0x00100000 // commit fe9918d3b228b 2019-07-22
 #endif
+#ifndef FS_ENCRYPT_FL
+#define FS_ENCRYPT_FL     0x00000800 // commit 9bd8212f981e 2015-04-13
+#endif
+#ifndef FS_INLINE_DATA_FL
+#define FS_INLINE_DATA_FL 0x10000000 // commit f19d5870cbf7 2012-11-08
+#endif
+#ifndef FS_PROJINHERIT_FL
+#define FS_PROJINHERIT_FL 0x20000000 // commit 040cb3786d9b 2016-03-09
+#endif
+
+// struct fsxattr and FS_IOC_FSGETXATTR/FS_IOC_FSSETXATTR added in Linux 4.5
+#ifndef FS_IOC_FSGETXATTR
+struct fsxattr {
+  unsigned int  fsx_xflags;
+  unsigned int  fsx_extsize;
+  unsigned int  fsx_nextents;
+  unsigned int  fsx_projid;
+  unsigned int  fsx_cowextsize;
+  unsigned char fsx_pad[8];
+};
+#define FS_IOC_FSGETXATTR _IOR('X', 31, struct fsxattr)
+#define FS_IOC_FSSETXATTR _IOW('X', 32, struct fsxattr)
+#endif
 
 static struct ext2_attr {
   char *name;

@@ -97,6 +97,11 @@ GLOBALS(
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
 
+// I2C_RDWR_IOCTL_MAX_MSGS added in Linux 3.14 (commit 0c82f2e7e9ef)
+#ifndef I2C_RDWR_IOCTL_MAX_MSGS
+#define I2C_RDWR_IOCTL_MAX_MSGS 42
+#endif
+
 printf_format static void confirm(const char *fmt, ...)
 {
   va_list va;
