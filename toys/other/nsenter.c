@@ -73,6 +73,11 @@ config NSENTER
 #include "toys.h"
 #include <linux/sched.h>
 
+// CLONE_NEWCGROUP added in Linux 4.6 (commit 5484e6e7f7ec)
+#ifndef CLONE_NEWCGROUP
+#define CLONE_NEWCGROUP 0x02000000
+#endif
+
 #define unshare(flags) syscall(SYS_unshare, flags)
 #define setns(fd, nstype) syscall(SYS_setns, fd, nstype)
 
