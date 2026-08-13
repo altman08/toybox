@@ -47,6 +47,19 @@ struct head_data {
   int file_no;
 };
 
+struct servtab;
+struct inetd_data {
+  long q;
+  long R;
+
+  struct servtab *svcs;
+  int nsvc;
+  fd_set rfds;
+  int maxfd;
+  char *defhost;
+  int alarm_armed;
+};
+
 struct ln_data {
   char *t;
 };
@@ -138,6 +151,7 @@ extern union global_union {
 	struct fold_data fold;
 	struct grep_data grep;
 	struct head_data head;
+	struct inetd_data inetd;
 	struct ln_data ln;
 	struct ls_data ls;
 	struct mkdir_data mkdir;
