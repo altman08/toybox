@@ -504,9 +504,9 @@ void lscpu_main(void)
   //   L0 (no indent):  Architecture, CPU(s), Vendor ID, NUMA node(s), caches
   //   L1 (2 spaces):   CPU op-mode(s), Byte Order, On/Off-line list, Model name
   //   L2 (4 spaces):   Model, Thread/Core/Socket, freq, BogoMIPS, Flags, Stepping
-#define P0(key, fmt, ...) printf("%-22s " fmt "\n", key, ##__VA_ARGS__)
-#define P1(key, fmt, ...) printf("  %-20s " fmt "\n", key, ##__VA_ARGS__)
-#define P2(key, fmt, ...) printf("    %-18s " fmt "\n", key, ##__VA_ARGS__)
+#define P0(key, fmt, ...) printf("%-24s " fmt "\n", key, ##__VA_ARGS__)
+#define P1(key, fmt, ...) printf("  %-22s " fmt "\n", key, ##__VA_ARGS__)
+#define P2(key, fmt, ...) printf("    %-20s " fmt "\n", key, ##__VA_ARGS__)
 
   P0("Architecture:", "%s", arch);
 

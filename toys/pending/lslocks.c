@@ -188,43 +188,69 @@ static long long get_filesize(const char *path)
   return (long long)st.st_size;
 }
 
+// One parsed lock row (used for two-pass column-width calculation)
+struct lock_row {
+  struct lock_row *next;
+  char cmd[64];    // COMMAND or PID string
+  char pid[16];
+  char type[16];
+  char size[16];
+  char mode[16];
+  char m[4];       // "0" or "1"
+  char start[32];
+  char end[32];
+  char path[256];
+};
+
+// Column indices
+#define COL_CMD   0
+#define COL_PID   1
+#define COL_TYPE  2
+#define COL_SIZE  3
+#define COL_MODE  4
+#define COL_M     5
+#define COL_START 6
+#define COL_END   7
+#define COL_PATH  8
+#define NCOLS     9
+
 void lslocks_main(void)
 {
   FILE *fp;
   char *line;
   int id, pid;
   struct pid_info *cache;
+  struct lock_row *rows = NULL, *row, **tail = &rows;
+  int w[NCOLS], i;
+  // header strings: with-command and no-command (-n) modes
+  const char *hdr_cmd[NCOLS]  = {"COMMAND","PID","TYPE","SIZE","MODE","M","START","END","PATH"};
+  const char *hdr_n[NCOLS]    = {"PID",    "",   "TYPE","SIZE","MODE","M","START","END","PATH"};
 
   // Always build cache: needed for path resolution even with -n
   cache = build_pid_cache();
 
   fp = xfopen("/proc/locks", "r");
 
-  if (FLAG(n))
-    printf("%-16s %5s %5s %-5s %1s %5s %3s %s\n",
-           "PID", "TYPE", "SIZE", "MODE", "M", "START", "END", "PATH");
-  else
-    printf("%-16s %5s %5s %5s %-5s %1s %5s %3s %s\n",
-           "COMMAND", "PID", "TYPE", "SIZE", "MODE", "M", "START", "END",
-           "PATH");
+  // ---- Pass 1: parse all rows, accumulate column widths ----
+  // Initialise widths from header
+  for (i = 0; i < NCOLS; i++)
+    w[i] = strlen(FLAG(n) ? hdr_n[i] : hdr_cmd[i]);
 
   while ((line = xgetline(fp))) {
     char locktype[16], mandatory[16], mode[16];
-    char start_str[32], end_str[32], size_str[16];
-    char devstr[32];
+    char end_str[32], devstr[32];
     unsigned maj, min;
     unsigned long long inode;
     long long start, end;
     char cmdname[64];
     char filepath[256];
+    char size_str[16];
 
-    // Parse the line: id: [->] TYPE MANDATORY MODE PID MAJ:MIN:INODE START END
-    // PID can be -1 for OFD locks; "->" marks a blocked (waiting) lock
+    // Parse: id: [->] TYPE MANDATORY MODE PID MAJ:MIN:INODE START END
     {
       char tmp[8];
       int blocked = 0;
 
-      // Check for optional "->" blocked marker
       if (sscanf(line, "%d: %7s", &id, tmp) == 2 && !strcmp(tmp, "->"))
         blocked = 1;
 
@@ -239,13 +265,11 @@ void lslocks_main(void)
       }
     }
 
-    // Parse device string "MAJ:MIN:INODE" (hex values)
     if (sscanf(devstr, "%x:%x:%llu", &maj, &min, &inode) != 3)
       { free(line); continue; }
 
     free(line);
 
-    // Parse end - could be "EOF"
     if (!strcmp(end_str, "EOF")) end = -1;
     else end = atoll(end_str);
 
@@ -253,17 +277,14 @@ void lslocks_main(void)
     filepath[0] = '\0';
 
     if (pid <= 0) {
-      // OFD/kernel lock: no process
       xstrncpy(cmdname, "(unknown)", sizeof(cmdname));
     } else {
-      // Look up in fdinfo cache to get accurate tgid, cmdname and path
       struct pid_info *pi = cache_lookup(cache, dev, (ino_t)inode);
       if (pi) {
         xstrncpy(filepath, pi->path, sizeof(filepath));
         if (FLAG(n)) snprintf(cmdname, sizeof(cmdname), "%d", pid);
         else xstrncpy(cmdname, pi->cmdname, sizeof(cmdname));
       } else {
-        // Fallback: read comm directly from the pid in /proc/locks
         if (FLAG(n)) snprintf(cmdname, sizeof(cmdname), "%d", pid);
         else {
           char *commpath = xmprintf("/proc/%d/comm", pid);
@@ -275,7 +296,6 @@ void lslocks_main(void)
       }
     }
 
-    // If path not yet resolved, try /proc/pid/fd then mountinfo fallback
     if (!filepath[0]) {
       if (pid > 0) {
         DIR *dir;
@@ -305,7 +325,6 @@ void lslocks_main(void)
         mountinfo_path(dev, inode, filepath, sizeof(filepath));
     }
 
-    // Get file size
     {
       long long sz = get_filesize(filepath);
 
@@ -313,26 +332,91 @@ void lslocks_main(void)
       else human_readable(size_str, (unsigned long long)sz, HR_B);
     }
 
-    // Format start/end fields
-    snprintf(start_str, sizeof(start_str), "%lld", start);
-    if (end == -1) xstrncpy(end_str, "0", sizeof(end_str));
-    else snprintf(end_str, sizeof(end_str), "%lld", end);
+    // Build row
+    row = xzalloc(sizeof(*row));
+    if (FLAG(n)) snprintf(row->cmd, sizeof(row->cmd), "%d", pid);
+    else xstrncpy(row->cmd, cmdname, sizeof(row->cmd));
+    snprintf(row->pid,   sizeof(row->pid),   "%d",   pid);
+    xstrncpy(row->type, locktype, sizeof(row->type));
+    xstrncpy(row->size, size_str, sizeof(row->size));
+    xstrncpy(row->mode, mode,     sizeof(row->mode));
+    snprintf(row->m,    sizeof(row->m),    "%d",   !strcmp(mandatory,"MANDATORY"));
+    snprintf(row->start,sizeof(row->start),"%lld",  start);
+    if (end == -1) xstrncpy(row->end, "0", sizeof(row->end));
+    else snprintf(row->end, sizeof(row->end), "%lld", end);
+    xstrncpy(row->path, filepath, sizeof(row->path));
 
-    // M column: 1 if mandatory, 0 if advisory
-    int mand = !strcmp(mandatory, "MANDATORY");
+    // Measure column widths
+    w[COL_CMD]   = maxof(w[COL_CMD],   (int)strlen(row->cmd));
+    w[COL_PID]   = maxof(w[COL_PID],   (int)strlen(row->pid));
+    w[COL_TYPE]  = maxof(w[COL_TYPE],  (int)strlen(row->type));
+    w[COL_SIZE]  = maxof(w[COL_SIZE],  (int)strlen(row->size));
+    w[COL_MODE]  = maxof(w[COL_MODE],  (int)strlen(row->mode));
+    w[COL_M]     = maxof(w[COL_M],     (int)strlen(row->m));
+    w[COL_START] = maxof(w[COL_START], (int)strlen(row->start));
+    w[COL_END]   = maxof(w[COL_END],   (int)strlen(row->end));
+    // PATH column: not padded (last column), no width needed
 
+    *tail = row;
+    tail  = &row->next;
+  }
+  fclose(fp);
+
+  // ---- Pass 2: print header then rows ----
+#define PFMT "%-*s %*s %*s %*s %-*s %*s %*s %*s %s\n"
+
+  if (FLAG(n))
+    printf(PFMT,
+           w[COL_CMD],   hdr_n[COL_CMD],
+           w[COL_PID],   "",
+           w[COL_TYPE],  hdr_n[COL_TYPE],
+           w[COL_SIZE],  hdr_n[COL_SIZE],
+           w[COL_MODE],  hdr_n[COL_MODE],
+           w[COL_M],     hdr_n[COL_M],
+           w[COL_START], hdr_n[COL_START],
+           w[COL_END],   hdr_n[COL_END],
+           hdr_n[COL_PATH]);
+  else
+    printf(PFMT,
+           w[COL_CMD],   hdr_cmd[COL_CMD],
+           w[COL_PID],   hdr_cmd[COL_PID],
+           w[COL_TYPE],  hdr_cmd[COL_TYPE],
+           w[COL_SIZE],  hdr_cmd[COL_SIZE],
+           w[COL_MODE],  hdr_cmd[COL_MODE],
+           w[COL_M],     hdr_cmd[COL_M],
+           w[COL_START], hdr_cmd[COL_START],
+           w[COL_END],   hdr_cmd[COL_END],
+           hdr_cmd[COL_PATH]);
+
+  for (row = rows; row; row = row->next) {
     if (FLAG(n))
-      printf("%-16d %5s %5s %-5s %1d %5s %3s %s\n",
-             pid, locktype, size_str, mode, mand,
-             start_str, end_str, filepath);
+      printf(PFMT,
+             w[COL_CMD],   row->cmd,
+             w[COL_PID],   "",
+             w[COL_TYPE],  row->type,
+             w[COL_SIZE],  row->size,
+             w[COL_MODE],  row->mode,
+             w[COL_M],     row->m,
+             w[COL_START], row->start,
+             w[COL_END],   row->end,
+             row->path);
     else
-      printf("%-16s %5d %5s %5s %-5s %1d %5s %3s %s\n",
-             cmdname, pid, locktype, size_str, mode, mand,
-             start_str, end_str, filepath);
+      printf(PFMT,
+             w[COL_CMD],   row->cmd,
+             w[COL_PID],   row->pid,
+             w[COL_TYPE],  row->type,
+             w[COL_SIZE],  row->size,
+             w[COL_MODE],  row->mode,
+             w[COL_M],     row->m,
+             w[COL_START], row->start,
+             w[COL_END],   row->end,
+             row->path);
   }
 
+#undef PFMT
+
   if (CFG_TOYBOX_FREE) {
-    fclose(fp);
+    while (rows) { struct lock_row *next = rows->next; free(rows); rows = next; }
     free_pid_cache(cache);
   }
 }

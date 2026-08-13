@@ -200,29 +200,71 @@ static void fmt_size(char *buf, unsigned long long sectors)
   human_readable(buf, sectors * 512, HR_B);
 }
 
-// Print one device row.
-// is_last: 1=last child (use └─), 0=not last (use ├─), -1=top-level (no prefix)
-static void print_dev(struct blkdev *bd, int is_last)
+// One output row (for two-pass column-width calculation)
+struct blkrow {
+  struct blkrow *next;
+  // iname: display name with optional tree-prefix (UTF-8 bytes)
+  char iname[80];
+  int  iname_dispw; // display width of iname (byte len minus 4 for each UTF-8 prefix)
+  char majmin[32];  // "maj:min" string
+  char rm[4];       // removable flag "0"/"1"
+  char size[32];
+  char ro[4];       // read-only flag "0"/"1"
+  char type[16];
+  char mnt[512];    // mountpoints (may be empty)
+};
+
+// Column indices
+#define BC_NAME   0
+#define BC_MAJMIN 1
+#define BC_RM     2
+#define BC_SIZE   3
+#define BC_RO     4
+#define BC_TYPE   5
+#define BC_MNT    6
+#define BNCOLS    7
+
+// Collect one device into the row list and update column widths.
+// is_last: 1=last child (└─), 0=not last (├─), -1=top-level (no prefix)
+static void collect_dev(struct blkdev *bd, int is_last,
+                        struct blkrow **tail, int w[])
 {
-  char sizebuf[32], iname[80];
+  struct blkrow *r = xzalloc(sizeof(*r));
   char *mnt = get_mountpoints(bd->maj, bd->min);
 
-  if (is_last < 0)
-    snprintf(iname, sizeof(iname), "%s", bd->name);
-  else if (is_last)
-    snprintf(iname, sizeof(iname), "\xe2\x94\x94\xe2\x94\x80%s", bd->name); // └─
-  else
-    snprintf(iname, sizeof(iname), "\xe2\x94\x9c\xe2\x94\x80%s", bd->name); // ├─
+  // Build display name with tree prefix
+  if (is_last < 0) {
+    snprintf(r->iname, sizeof(r->iname), "%s", bd->name);
+    r->iname_dispw = strlen(bd->name);
+  } else if (is_last) {
+    // └─  = \xe2\x94\x94\xe2\x94\x80  (6 bytes, 2 display columns)
+    snprintf(r->iname, sizeof(r->iname), "\xe2\x94\x94\xe2\x94\x80%s", bd->name);
+    r->iname_dispw = 2 + strlen(bd->name);
+  } else {
+    // ├─  = \xe2\x94\x9c\xe2\x94\x80  (6 bytes, 2 display columns)
+    snprintf(r->iname, sizeof(r->iname), "\xe2\x94\x9c\xe2\x94\x80%s", bd->name);
+    r->iname_dispw = 2 + strlen(bd->name);
+  }
 
-  fmt_size(sizebuf, bd->size);
-
-  // └─ and ├─ are each 2 UTF-8 chars = 6 bytes but display as 2 columns.
-  // %-12s pads by byte count, so add 4 extra bytes for the 2 prefix chars.
-  printf("%-*s %3d:%-4d %2d %6s %2d %-4s %s\n",
-         is_last < 0 ? 12 : 16, iname,
-         bd->maj, bd->min, bd->removable,
-         sizebuf, bd->ro, bd->type, mnt ? mnt : "");
+  snprintf(r->majmin, sizeof(r->majmin), "%d:%d", bd->maj, bd->min);
+  snprintf(r->rm,     sizeof(r->rm),     "%d",    bd->removable);
+  fmt_size(r->size, bd->size);
+  snprintf(r->ro,     sizeof(r->ro),     "%d",    bd->ro);
+  strncpy(r->type, bd->type, sizeof(r->type) - 1);
+  strncpy(r->mnt, mnt ? mnt : "", sizeof(r->mnt) - 1);
   free(mnt);
+
+  // Update column widths (NAME column uses display width, not byte length)
+  w[BC_NAME]   = maxof(w[BC_NAME],   r->iname_dispw);
+  w[BC_MAJMIN] = maxof(w[BC_MAJMIN], (int)strlen(r->majmin));
+  w[BC_RM]     = maxof(w[BC_RM],     (int)strlen(r->rm));
+  w[BC_SIZE]   = maxof(w[BC_SIZE],   (int)strlen(r->size));
+  w[BC_RO]     = maxof(w[BC_RO],     (int)strlen(r->ro));
+  w[BC_TYPE]   = maxof(w[BC_TYPE],   (int)strlen(r->type));
+  // MOUNTPOINTS is last column - no padding needed
+
+  (*tail)->next = r;
+  *tail = r;
 }
 
 void lsblk_main(void)
@@ -231,7 +273,16 @@ void lsblk_main(void)
   struct dirent *de, *pde;
   struct double_list *disklist = NULL, *dl;
 
+  // Sentinel head for the row list
+  struct blkrow sentinel = {0}, *tail = &sentinel;
+  int w[BNCOLS];
+  const char *hdr[BNCOLS] = {"NAME","MAJ:MIN","RM","SIZE","RO","TYPE","MOUNTPOINTS"};
+  int i;
+
   load_mounts();
+
+  // Initialise widths from header strings
+  for (i = 0; i < BNCOLS; i++) w[i] = strlen(hdr[i]);
 
   if (!(sysblk = opendir("/sys/block")))
     perror_exit("can't open /sys/block");
@@ -267,17 +318,13 @@ void lsblk_main(void)
     disklist = sorted;
   }
 
-  // Print header
-  printf("%-12s %6s %2s %6s %2s %-4s %s\n",
-         "NAME", "MAJ:MIN", "RM", "SIZE", "RO", "TYPE", "MOUNTPOINTS");
-
-  // For each disk, print it then its partitions
+  // ---- Pass 1: collect all rows, measure column widths ----
   for (dl = disklist; dl; dl = dl->next) {
     struct blkdev *bd = (struct blkdev *)dl->data;
     char devpath[128];
     struct double_list *parts = NULL, *pl;
 
-    print_dev(bd, -1);
+    collect_dev(bd, -1, &tail, w);
 
     // Scan /sys/block/<name>/ for partition subdirs
     snprintf(devpath, sizeof(devpath), "/sys/block/%s", bd->name);
@@ -318,9 +365,9 @@ void lsblk_main(void)
       parts = sorted;
     }
 
-    for (pl = parts; pl; pl = pl->next) {
-      print_dev((struct blkdev *)pl->data, pl->next == NULL ? 1 : 0);
-    }
+    for (pl = parts; pl; pl = pl->next)
+      collect_dev((struct blkdev *)pl->data,
+                  pl->next == NULL ? 1 : 0, &tail, w);
 
     if (CFG_TOYBOX_FREE) {
       for (pl = parts; pl; pl = pl->next) free(pl->data);
@@ -328,7 +375,46 @@ void lsblk_main(void)
     }
   }
 
+  // ---- Pass 2: print header then rows ----
+  // NAME column: iname is stored as UTF-8 bytes; for padding we need to
+  // account for the 4 extra bytes (2 x 3-byte sequences vs 2 display cols).
+  // We use %-*s with byte_width = display_width + extra_bytes_for_prefix.
+#define PRINT_ROW(name_bytes, name_dispw) \
+  printf("%-*s %*s %*s %*s %*s %-*s %s\n", \
+         w[BC_NAME] + ((name_bytes) - (name_dispw)), (r->iname), \
+         w[BC_MAJMIN], r->majmin, \
+         w[BC_RM],     r->rm, \
+         w[BC_SIZE],   r->size, \
+         w[BC_RO],     r->ro, \
+         w[BC_TYPE],   r->type, \
+         r->mnt)
+
+  // Print header (no UTF-8 prefix, dispw == bytelen)
+  {
+    struct blkrow hrow = {0};
+    struct blkrow *r = &hrow;
+    strncpy(hrow.iname, hdr[BC_NAME],   sizeof(hrow.iname)-1);
+    strncpy(hrow.majmin,hdr[BC_MAJMIN], sizeof(hrow.majmin)-1);
+    strncpy(hrow.rm,    hdr[BC_RM],     sizeof(hrow.rm)-1);
+    strncpy(hrow.size,  hdr[BC_SIZE],   sizeof(hrow.size)-1);
+    strncpy(hrow.ro,    hdr[BC_RO],     sizeof(hrow.ro)-1);
+    strncpy(hrow.type,  hdr[BC_TYPE],   sizeof(hrow.type)-1);
+    strncpy(hrow.mnt,   hdr[BC_MNT],    sizeof(hrow.mnt)-1);
+    hrow.iname_dispw = strlen(hdr[BC_NAME]);
+    PRINT_ROW(strlen(hrow.iname), hrow.iname_dispw);
+  }
+
+  {
+    struct blkrow *r;
+    for (r = sentinel.next; r; r = r->next)
+      PRINT_ROW((int)strlen(r->iname), r->iname_dispw);
+  }
+
+#undef PRINT_ROW
+
   if (CFG_TOYBOX_FREE) {
+    struct blkrow *r = sentinel.next;
+    while (r) { struct blkrow *nx = r->next; free(r); r = nx; }
     for (dl = disklist; dl; dl = dl->next) free(dl->data);
     llist_traverse(disklist, free);
     llist_traverse(TT.mounts, free);
