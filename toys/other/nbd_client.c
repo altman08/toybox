@@ -7,18 +7,19 @@
 // This little dance is because a NEWTOY with - in the name tries to do
 // things like prototype "nbd-client_main" which isn't a valid symbol. So
 // we hide the underscore name and OLDTOY the name we want.
-USE_NBD_CLIENT(NEWTOY(nbd_client, "<3>3b#<1>4294967295=4096ns", 0))
+USE_NBD_CLIENT(NEWTOY(nbd_client, "<3>3t#<0b#<1>4294967295=4096ns", 0))
 USE_NBD_CLIENT(OLDTOY(nbd-client, nbd_client, TOYFLAG_USR|TOYFLAG_BIN))
 
 config NBD_CLIENT
   bool "nbd-client"
   default y
   help
-    usage: nbd-client [-ns] [-b BLKSZ] HOST PORT DEVICE
+    usage: nbd-client [-ns] [-b BLKSZ] [-t SEC] HOST PORT DEVICE
 
     -b	Block size (default 4096)
     -n	Do not daemonize
     -s	nbd swap support (lock server into memory)
+    -t	Timeout in seconds for I/O requests (0 = no timeout)
 */
 
 #define FOR_nbd_client
@@ -27,6 +28,7 @@ config NBD_CLIENT
 
 GLOBALS(
   long b;
+  long t;
 
   int nbd;
 )
@@ -42,7 +44,6 @@ static void sig_cleanup(int catch)
 void nbd_client_main(void)
 {
   int sock = -1, flags, temp;
-  unsigned long timeout = 0;
   char *host=toys.optargs[0], *port=toys.optargs[1], *device=toys.optargs[2];
   unsigned long long devsize;
 
@@ -80,7 +81,7 @@ void nbd_client_main(void)
     flags = (flags>>1)&1;
     xioctl(TT.nbd, BLKROSET, &flags);
 
-    if (timeout && ioctl(TT.nbd, NBD_SET_TIMEOUT, timeout)<0) break;
+    if (TT.t && ioctl(TT.nbd, NBD_SET_TIMEOUT, (unsigned long)TT.t)<0) break;
     if (ioctl(TT.nbd, NBD_SET_SOCK, sock) < 0) break;
 
     if (FLAG(s)) mlockall(MCL_CURRENT|MCL_FUTURE);
