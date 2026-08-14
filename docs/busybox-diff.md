@@ -4,11 +4,11 @@
 
 - BusyBox applet 总数：437 个
 - Toybox 命令总数：~361 个
-- **BusyBox 独有命令：171 个**（其中 `nslookup` 已移植至 toys/pending/）
+- **BusyBox 独有命令：171 个**（其中 `nslookup`、`unxz`、`xz` 已移植至 toys/pending/）
 
 ---
 
-## 一、归档 & 压缩（16 个）
+## 一、归档 & 压缩（14 个）
 
 | 命令 | 功能 |
 |------|------|
@@ -16,7 +16,7 @@
 | `lzma` / `unlzma` | LZMA 算法压缩/解压 |
 | `lzcat` | 解压 lzma/xz 并输出到 stdout |
 | `lzop` / `unlzop` / `lzopcat` | LZO 算法压缩/解压（高速低压缩率，适合嵌入式） |
-| `xz` / `unxz` | XZ 算法压缩/解压 |
+| `xz` / `unxz` | XZ 算法压缩/解压 ✅ 已移植至 toys/pending/（仅解压，-d 模式） |
 | `unzip` | 解压 ZIP 归档 |
 | `uncompress` | 解压传统 Unix `.Z` 格式 |
 | `ar` | 创建/解压静态库格式归档（`.a` 文件） |
@@ -230,7 +230,7 @@ toybox 完全没有 SELinux 支持。
 | 终端控制台 | 20 | 字体、键盘映射、帧缓冲等 |
 | runit 服务管理 | 10 | daemontools/runit 生态工具集 |
 | 进程/系统管理 | 13 | iostat、pstree、start-stop-daemon 等 |
-| 压缩格式 | 16 | 更多压缩格式支持 |
+| 压缩格式 | 14 | 更多压缩格式支持（xz/unxz 已移植） |
 | SELinux | 6 | toybox 完全没有 SELinux 支持 |
 | 用户/认证 | 8 | chpasswd、vlock、wall 等 |
 | 其他 | 9 | 打印、磁带、文本处理等 |

@@ -1,13 +1,44 @@
-/*
- * Author: Lasse Collin <xz@tukaani.org>
+/* xzcat.c - xz/unxz/xzcat decompression
  *
- * This file has been put into the public domain.
- * You can do whatever you want with this file.
- * Modified for toybox by Isaac Dunham
+ * Lasse Collin <xz@tukaani.org> put the XZ Embedded decoder into public domain.
+ * Modified for toybox by Isaac Dunham, extended for unxz/xz.
  *
  * See http://tukaani.org/xz/xz-file-format.txt
  *
-USE_XZCAT(NEWTOY(xzcat, NULL, TOYFLAG_USR|TOYFLAG_BIN))
+USE_XZCAT(NEWTOY(xzcat, 0, TOYFLAG_USR|TOYFLAG_BIN))
+USE_UNXZ(NEWTOY(unxz, "cfktv", TOYFLAG_USR|TOYFLAG_BIN))
+USE_XZ(NEWTOY(xz, "dcfktv", TOYFLAG_USR|TOYFLAG_BIN))
+
+config XZ
+  bool "xz"
+  default n
+  help
+    usage: xz -d [-cfktv] [FILE...]
+
+    Decompress listed files (file.xz becomes file) deleting archive file(s).
+    Read from stdin if no files listed. Only decompression (-d) is supported.
+
+    -c	Force output to stdout
+    -d	Decompress (required)
+    -f	Force: allow overwrite of output file
+    -k	Keep input files (-c and -t imply this)
+    -t	Test integrity (no output)
+    -v	Verbose
+
+config UNXZ
+  bool "unxz"
+  default n
+  help
+    usage: unxz [-cfktv] [FILE...]
+
+    Decompress listed files (file.xz becomes file) deleting archive file(s).
+    Read from stdin if no files listed.
+
+    -c	Force output to stdout
+    -f	Force: allow overwrite of output file
+    -k	Keep input files (-c and -t imply this)
+    -t	Test integrity (no output)
+    -v	Verbose
 
 config XZCAT
   bool "xzcat"
@@ -18,7 +49,7 @@ config XZCAT
     Decompress listed files to stdout. Use stdin if no files listed.
 */
 
-#define FOR_xzcat
+#define FOR_unxz
 #include "toys.h"
 
 // BEGIN xz.h
@@ -2613,9 +2644,11 @@ static enum xz_ret xz_dec_run(struct xz_dec *s, struct xz_buf *b)
   return ret;
 }
 
-static char out[BUFSIZ];
+static char xz_outbuf[BUFSIZ];
 
-static void do_xzcat(int fd, char *name)
+// Core decompression: read from fd, write to out_fd.
+// Returns 0 on success, -1 on error (error message already printed).
+static int xzdecompress(int fd, int out_fd)
 {
   sigjmp_buf jmp;
   struct xz_buf b;
@@ -2624,14 +2657,13 @@ static void do_xzcat(int fd, char *name)
   const uint64_t poly = 0xC96C5795D7870F42ULL;
   unsigned i, j;
   uint64_t r;
+  int rc = 0;
 
   crc_init(xz_crc32_table, 1);
-  /* initialize CRC64 table*/
   for (i = 0; i < 256; ++i) {
     r = i;
     for (j = 0; j < 8; ++j)
       r = (r >> 1) ^ (poly & ~((r & 1) - 1));
-
     xz_crc64_table[i] = r;
   }
 
@@ -2653,7 +2685,7 @@ static void do_xzcat(int fd, char *name)
   b.in = toybuf;
   b.in_pos = 0;
   b.in_size = 0;
-  b.out = out;
+  b.out = xz_outbuf;
   b.out_pos = 0;
   b.out_size = BUFSIZ;
 
@@ -2666,28 +2698,114 @@ static void do_xzcat(int fd, char *name)
 
     ret = xz_dec_run(s, &b);
 
-    if (b.out_pos == sizeof(out)) {
-      xwrite(1, out, b.out_pos);
+    if (b.out_pos == sizeof(xz_outbuf)) {
+      xwrite(out_fd, xz_outbuf, b.out_pos);
       b.out_pos = 0;
     }
 
     if (ret == XZ_OK) continue;
-    xwrite(1, out, b.out_pos);
+    xwrite(out_fd, xz_outbuf, b.out_pos);
+    b.out_pos = 0;
     if (ret == XZ_STREAM_END) break;
 
-    error_exit_raw((char *[]){"Unsupported options in the .xz headers",
-      "File is corrupt"}[ret-2]);
+    error_msg("%s", ((char *[]){"Unsupported options in the .xz headers",
+      "File is corrupt"})[ret-2]);
+    rc = -1;
+    break;
   }
   toys.rebound = 0;
 
   free((s->lzma2)->dict.buf);
   free(s->lzma2);
-
   free(s->bcj);
   free(s);
+  return rc;
+}
+
+static void do_xzcat(int fd, char *name)
+{
+  xzdecompress(fd, 1);
 }
 
 void xzcat_main(void)
 {
   loopfiles(toys.optargs, do_xzcat);
+}
+
+// Raw bit positions for options shared by unxz("cfktv") and xz("dcfktv").
+// Both use the same suffix order: v=bit0 t=bit1 k=bit2 f=bit3 c=bit4.
+// Use raw masks so do_unxz works regardless of which command is compiled.
+#define OPT_v (1<<0)
+#define OPT_t (1<<1)
+#define OPT_k (1<<2)
+#define OPT_f (1<<3)
+#define OPT_c (1<<4)
+#define OPT(x) (toys.optflags & OPT_##x)
+
+// unxz/xz -d: decompress FILE, writing to FILE-without-.xz
+static void do_unxz(int fd, char *name)
+{
+  int outfd = 1, do_rename = 0, len = strlen(name);
+  char *tmp = 0, *outname = 0;
+
+  // Determine output filename: strip .xz suffix
+  if (strcmp(name, "-")) {
+    if (len > 3 && !strcmp(name+len-3, ".xz"))
+      outname = xstrndup(name, len-3);   // "file.xz" -> "file"
+    else if (!OPT(f)) {
+      error_msg("%s: unknown suffix -- ignored", name);
+      return;
+    } else outname = xstrdup(name);      // -f: decompress even without .xz
+  }
+
+  if (OPT(t)) outfd = xopen("/dev/null", O_WRONLY);
+  else if (!OPT(c) && outname) {
+    // Check if output file already exists
+    if (!OPT(f) && !access(outname, F_OK)) {
+      error_msg("%s already exists", outname);
+      free(outname);
+      return;
+    }
+    // Write to temp file in same directory, then rename
+    tmp = xmprintf("%sXXXXXX", outname);
+    outfd = mkstemp(tmp);
+    if (outfd < 0) perror_exit("mkstemp");
+    do_rename++;
+  }
+
+  if (OPT(v) && outname) printf("%s:", name);
+  int err = xzdecompress(fd, outfd);
+  if (OPT(v) && outname) printf("%s\n", err ? "error" : "ok");
+
+  if (do_rename) {
+    if (!err) {
+      close(outfd);
+      xrename(tmp, outname);            // rename tmp -> output file
+      if (!OPT(k)) unlink(name);        // delete source .xz (unless -k)
+    } else {
+      close(outfd);
+      unlink(tmp);
+      toys.exitval = 1;
+    }
+    free(tmp);
+  }
+  free(outname);
+}
+
+void unxz_main(void)
+{
+  loopfiles(toys.optargs, do_unxz);
+}
+
+// xz behaves like unxz but requires -d flag (compression not implemented).
+// "dcfktv": d is the first char, so FLAG_d = (1LL<<0) when FOR_xz is defined.
+// Since we compile under FOR_unxz, use the raw bit position: in "dcfktv"
+// the flags are assigned bits 0..5 from right-to-left of the string,
+// i.e. v=bit0, t=bit1, k=bit2, f=bit3, c=bit4, d=bit5.
+#define XZ_FLAG_d (1<<5)
+void xz_main(void)
+{
+  if (!(toys.optflags & XZ_FLAG_d))
+    error_exit("xz: compression not supported, use -d to decompress");
+  loopfiles(toys.optargs, do_unxz);
 }
