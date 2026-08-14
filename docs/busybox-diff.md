@@ -4,7 +4,7 @@
 
 - BusyBox applet 总数：437 个
 - Toybox 命令总数：~361 个
-- **BusyBox 独有命令：171 个**（其中 `nslookup`、`unxz`、`xz`、`whois` 已移植至 toys/pending/）
+- **BusyBox 独有命令：171 个**（其中 `nslookup`、`unxz`、`xz`、`whois`、`pscan` 已移植至 toys/pending/）
 
 ---
 
@@ -42,7 +42,7 @@
 | `nameif` | 接口关闭状态下按 MAC 地址重命名接口 |
 | `ipcalc` | 根据 IP 计算子网掩码/广播地址等网络信息 |
 | `ip` / `ipaddr` / `iplink` / `iproute` / `iprule` / `ipneigh` | iproute2 风格的综合网络配置工具集 |
-| `pscan` | 扫描主机开放端口 |
+| `pscan` | 扫描主机开放端口 ✅ 已移植至 toys/pending/ |
 | `ssl_client` | 简单 TLS 客户端 |
 | `ether-wake` | 发送 Magic Packet 唤醒 WoL 设备 |
 | `slattach` | 将串口配置为 SLIP 网络接口 |
