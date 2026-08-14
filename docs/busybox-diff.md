@@ -4,7 +4,7 @@
 
 - BusyBox applet 总数：437 个
 - Toybox 命令总数：~361 个
-- **BusyBox 独有命令：171 个**（其中 `nslookup`、`unxz`、`xz` 已移植至 toys/pending/）
+- **BusyBox 独有命令：171 个**（其中 `nslookup`、`unxz`、`xz`、`whois` 已移植至 toys/pending/）
 
 ---
 
@@ -35,7 +35,7 @@
 | `dnsd` | 小型静态 DNS 服务守护进程 |
 | `ntpd` | NTP 时间同步客户端/服务器 |
 | `nslookup` | 查询 DNS 记录 ✅ 已移植至 toys/pending/ |
-| `whois` | 查询域名/IP 注册信息 |
+| `whois` | 查询域名/IP 注册信息 ✅ 已移植至 toys/pending/ |
 | `ifup` / `ifdown` | 按 `/etc/network/interfaces` 启停网络接口 |
 | `ifenslave` | 网络接口 bonding（链路聚合）配置 |
 | `ifplugd` | 网线插拔事件检测守护进程 |
