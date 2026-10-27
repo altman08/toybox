@@ -78,6 +78,11 @@ struct reg {
   regmatch_t m;
 };
 
+struct dlb {
+  struct double_list dl;
+  unsigned bcount, trim;
+};
+
 static void numdash(long num, char dash)
 {
   printf("%s%ld%s%c", TT.green, num, TT.cyan, dash);
@@ -115,7 +120,7 @@ static int matchw(char *line, char *start, long so, long eo)
 static void do_grep(int fd, char *name)
 {
   long lcount = 0, mcount = 0, offset = 0, after = 0, before = 0, new = 1;
-  struct double_list *dlb = 0;
+  struct dlb *dlb = 0;
   char *bars = 0;
   FILE *file;
   int bin = 0;
@@ -273,12 +278,11 @@ got:
                   mm->rm_eo-mm->rm_so);
         else {
           while (dlb) {
-            struct double_list *dl = dlist_pop(&dlb);
-            unsigned *uu = (void *)(dl->data+(strlen(dl->data)|3)+1);
+            struct dlb *b = dlist_pop(&dlb);
 
-            outline(dl->data, '-', name, lcount-before, uu[0]+1, uu[1]);
-            free(dl->data);
-            free(dl);
+            outline(b->dl.data, '-', name, lcount-before, b->bcount, b->trim);
+            free(b->dl.data);
+            free(b);
             before--;
           }
 
@@ -315,20 +319,15 @@ got:
         discard = 0;
       }
       if (discard && TT.B) {
-        unsigned *uu, ul = (ulen|3)+1;
+        struct dlb *b = xmalloc(sizeof(struct dlb));
 
-        line = xrealloc(line, ul+8);
-        uu = (void *)(line+ul);
-        uu[0] = offset-len;
-        uu[1] = ulen;
-        dlist_add(&dlb, line);
+        b->bcount = offset-len+1;
+        b->trim = ulen;
+        b->dl.data = line;
         line = 0;
+        dlist_add_nomalloc((void *)&dlb, (void *)b);
         if (++before>TT.B) {
-          struct double_list *dl;
-
-          dl = dlist_pop(&dlb);
-          free(dl->data);
-          free(dl);
+          llist_free_double(dlist_pop(&dlb));
           before--;
         } else discard = 0;
       }
